@@ -21,6 +21,7 @@ assert.equal(process.getuid(),1000);
 const receipt=JSON.parse(readFileSync('/usr/share/doc/node/build.json','utf8'));
 for(const [key,value] of Object.entries(expected))assert.equal(receipt[key],value);
 assert.equal(process.version,'v'+expected.version+'-'+expected.tag);
+assert.equal(typeof globalThis.Temporal,'undefined');
 assert.equal(receipt.nodeVersion,process.version);
 assert.equal(receipt.binarySha256,createHash('sha256').update(readFileSync(process.execPath)).digest('hex'));
 assert.deepEqual(receipt.unpatchedControl,{EPIPE:'stale',EAGAIN:'stale'});
@@ -51,7 +52,7 @@ try {
     const socket=connect({...options,ca:fixture.cert},()=>{assert.equal(socket.authorized,true);socket.end();resolve();});socket.on('error',reject);
   });
 } finally {await new Promise(resolve=>server.close(resolve));}
-console.log('PASS: patched Node receipt/binary identity, UID 1000, library inventory, no OS zlib, SQLite backup, gzip, trusted TLS and untrusted certificate rejection.');
+console.log('PASS: patched Node receipt/binary identity, UID 1000, library inventory, no OS zlib, no Temporal, SQLite backup, gzip, trusted TLS and untrusted certificate rejection.');
 '''
     subprocess.run(['docker','run','--rm','-i','--network','none','--read-only',
                     '--cap-drop','ALL','--security-opt','no-new-privileges','--tmpfs','/tmp',
