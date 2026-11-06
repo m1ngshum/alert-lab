@@ -10,7 +10,8 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "start": "node server/main.mjs",
-    "replay": "node bin/replay.mjs"
+    "replay": "node bin/replay.mjs",
+    "build:demo": "node scripts/build-demo.mjs"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3"
