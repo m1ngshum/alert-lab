@@ -50,6 +50,7 @@ jobs:
           retention-days: 1
   publish:
     needs: verify-images
+    environment: release
     if: github.ref == 'refs/heads/main' && github.repository == 'm1ngshum/alert-lab'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
