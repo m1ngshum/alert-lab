@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "credentials",
+    "config"
+  ],
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "credentials": {
+      "type": "object",
+      "required": [
+        "existingSecret"
+      ],
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": [
+        "selector",
+        "prometheus"
+      ],
+      "properties": {
+        "selector": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "prometheus": {
+          "type": "object",
+          "required": [
+            "url",
+            "queries"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https?://"
+            },
+            "queries": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rate": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "success": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "latency": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "cpu": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "memory": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "rejection": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "downstream": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "security": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "consistency": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "samples": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "logs": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "metrics": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "journeys": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "freshnessQuery",
+                    "maxAgeSeconds"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "freshnessQuery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxAgeSeconds": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 3600
+                    },
+                    "values": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

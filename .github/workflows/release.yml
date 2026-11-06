@@ -1,0 +1,87 @@
+name: Release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.repository == 'm1ngshum/alert-lab'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: {node-version: '26.13.0', package-manager-cache: false}
+      - run: npm install --global npm@12.2.2
+      - run: npm ci
+      - run: npm test
+      - run: python3 scripts/install-tools.py helm trivy cli
+      - run: echo "$PWD/.tools" >> "$GITHUB_PATH"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build and scan both architectures before registry export
+        run: |
+          for architecture in amd64 arm64; do
+            docker buildx build --platform "linux/$architecture" --load -t "alert-lab:scan-$architecture" .
+            trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "alert-lab:scan-$architecture"
+          done
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify CI and reserve an unused version
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-guard.mjs
+      - name: Publish image
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/m1ngshum/alert-lab:0.1.0
+          provenance: mode=max
+          sbom: true
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/m1ngshum/alert-lab
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+      - name: Package chart and inventories
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          mkdir -p release
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          p=Path('charts/alert-lab/values.yaml');s=p.read_text().replace('  digest: ""','  digest: "'+os.environ['IMAGE_DIGEST']+'"');p.write_text(s)
+          PY
+          helm package charts/alert-lab --destination release
+          helm push release/alert-lab-0.1.0.tgz oci://ghcr.io/m1ngshum/charts
+          trivy image --format cyclonedx --output release/image-sbom.cdx.json "ghcr.io/m1ngshum/alert-lab@$IMAGE_DIGEST"
+          trivy fs --format cyclonedx --output release/chart-sbom.cdx.json charts/alert-lab
+          printf 'Image: `ghcr.io/m1ngshum/alert-lab@%s`\n\nChart: `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.0`.\n\nSingle-replica shadow service; keep existing paging active.\n' "$IMAGE_DIGEST" > release/NOTES.md
+      - name: Attest chart provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/alert-lab-0.1.0.tgz
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v0.1.0 release/alert-lab-0.1.0.tgz release/image-sbom.cdx.json release/chart-sbom.cdx.json
+          gh release edit v0.1.0 --draft=false --notes-file release/NOTES.md

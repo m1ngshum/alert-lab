@@ -1,0 +1,10 @@
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const run=(...args)=>spawnSync('helm',args,{encoding:'utf8'});
+let result=run('lint','charts/alert-lab','--set','credentials.existingSecret=test-only');assert.equal(result.status,0,result.stderr);
+result=run('template','alert-lab','charts/alert-lab','--set','credentials.existingSecret=test-only');assert.equal(result.status,0,result.stderr);
+for(const text of ['automountServiceAccountToken: false','readOnlyRootFilesystem: true','type: Recreate','helm.sh/resource-policy: keep'])assert.ok(result.stdout.includes(text));
+assert.ok(!/kind: (ClusterRole|RoleBinding|Ingress)/.test(result.stdout));
+for(const value of ['0','2','1.5'])assert.notEqual(run('template','alert-lab','charts/alert-lab','--set','credentials.existingSecret=test-only','--set','replicaCount='+value).status,0);
+assert.notEqual(run('template','alert-lab','charts/alert-lab').status,0);
+console.log('Helm rendering and security assertions passed.');

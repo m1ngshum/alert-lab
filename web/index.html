@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Explore how evidence changes alert follow-up in an interactive, synthetic triage demo.">
+  <title>Alert Lab — evidence to follow-up</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+<a class="skip" href="#evidence">Skip to evidence controls</a>
+<header class="topbar"><a class="brand" href="#"><span class="brand-mark" aria-hidden="true">↗</span> Alert Lab</a><span class="demo-badge"><span class="dot"></span> Design simulation</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">FROM SIGNAL TO NEXT ACTION</p><h1>A spike is a question.<br>Evidence decides the follow-up.</h1><p class="lede">Change the evidence behind an HTTP 400 spike. See what deserves a page, a human investigation, or a careful recheck.</p></div><aside class="intro-note"><span class="note-icon" aria-hidden="true">i</span><p><strong>Try the design, not your production.</strong><br>Synthetic data. Step Functions and Jev are simulated. No notifications or live integrations.</p></aside></div>
+  <section aria-labelledby="scenario-title" class="scenario-section"><div class="section-heading"><h2 id="scenario-title">Start with a scenario</h2><span>Then change any signal</span></div><div id="scenarios" class="scenarios" role="group" aria-label="Example scenarios"></div></section>
+  <div class="workspace">
+    <section class="panel evidence-panel" id="evidence" aria-labelledby="evidence-title">
+      <div class="panel-heading"><div><p class="eyebrow">01 / COLLECT EVIDENCE</p><h2 id="evidence-title">What is actually happening?</h2></div><span class="window-badge">5-minute sample</span></div>
+      <p class="context">Public API <span class="mono">/v1/requests</span> · illustrative traffic</p>
+      <div class="metric-grid">
+        <label class="metric" for="rate"><span>HTTP 400 rate</span><output id="rateOut"></output><input aria-label="HTTP 400 rate" id="rate" type="range" min="0" max="100" step="1"><small>Rejected requests / all requests</small></label>
+        <label class="metric" for="success"><span>User / client journey success</span><output id="successOut"></output><input aria-label="User / client journey success" id="success" type="range" min="80" max="100" step="0.1"><small>Includes first-party client failures</small></label>
+        <label class="metric" for="latency"><span>p95 latency</span><output id="latencyOut"></output><input aria-label="p95 latency" id="latency" type="range" min="0" max="2500" step="50"><small>For valid requests</small></label>
+        <label class="metric" for="cpu"><span>CPU use</span><output id="cpuOut"></output><input aria-label="CPU use" id="cpu" type="range" min="0" max="100" step="1"><small>Service capacity signal</small></label>
+        <label class="metric" for="memory"><span>Memory use</span><output id="memoryOut"></output><input aria-label="Memory use" id="memory" type="range" min="0" max="100" step="1"><small>Memory alone is not impact proof</small></label>
+      </div>
+      <div class="evidence-fields">
+        <label>Request rejection<select id="rejection"><option value="expected">Expected validation; no observed side effect</option><option value="unexpected">Unexpected exception or response</option><option value="unknown">Not verified</option></select></label>
+        <label>Downstream dependencies<select id="downstream"><option value="healthy">Healthy</option><option value="strained">Connection or queue pressure</option><option value="outage">Unavailable</option><option value="unknown">Unknown</option></select></label>
+        <label>Security evidence<select id="security"><option value="none">No concern observed in available evidence</option><option value="suspicious">Sustained suspicious probing</option><option value="confirmed">Confirmed compromise / unexpected access</option><option value="unknown">Not checked</option></select></label>
+        <label>Simulated classifier<select id="classifier"><option value="normal">Returns a valid recommendation</option><option value="uncertain">Ambiguous recommendation</option><option value="unavailable">Timeout / unavailable</option><option value="invalid">Invalid result</option></select></label>
+        <label>Evidence consistency<select id="consistency"><option value="consistent">Signals agree</option><option value="conflicting">Sources disagree / conflicting evidence</option></select></label>
+      </div>
+      <fieldset class="availability"><legend>Evidence available and current</legend><label><input id="logs" type="checkbox"> Application logs / rejection traces</label><label><input id="samples" type="checkbox"> Adequate samples: no exception, sensitive response or side effect</label><label><input id="metrics" type="checkbox"> Resource and dependency metrics</label><label><input id="journeys" type="checkbox"> User / client journey signals</label></fieldset>
+      <div class="run-row"><button class="primary" id="run">Run triage <span aria-hidden="true">→</span></button><button class="secondary" id="reset">Reset scenario</button></div>
+      <details class="thresholds"><summary>Illustrative routing thresholds</summary><p>These values explain this demo; they are not production defaults. The example spike clears at a 400 rate of 2% or below, after all evidence gates pass.</p><table><caption class="sr-only">Demo thresholds</caption><thead><tr><th>Signal</th><th>Human review</th><th>Page now</th></tr></thead><tbody><tr><td>Journey success</td><td>Below 99%</td><td>Below 97%</td></tr><tr><td>p95 latency</td><td>≥ 800 ms</td><td>≥ 1,500 ms</td></tr><tr><td>CPU or memory</td><td>≥ 75%</td><td>≥ 90%</td></tr><tr><td>Dependencies</td><td>Strained</td><td>Unavailable</td></tr></tbody></table><p>Only current evidence supports these triggers. Resource-only paging is an illustrative capacity rule; real policy needs duration and headroom. A 400 rate never pages by itself. Real thresholds need service baselines, traffic floors and SLOs.</p></details>
+    </section>
+    <aside class="panel outcome-panel" aria-labelledby="outcome-title">
+      <div class="panel-heading"><div><p class="eyebrow">02 / DECIDE FOLLOW-UP</p><h2 id="outcome-title">The next action</h2></div><span id="result-state" class="window-badge">Preview</span></div>
+      <div id="result" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="boundary"><strong>A 400 is evidence of a response, not intent.</strong><p>Correct rejection can coexist with user failures or security concerns. Missing telemetry is not a healthy signal.</p></div>
+      <div id="recheck" class="recheck" hidden><h3>Simulate the next check</h3><p>No timer is running. Advance the evidence yourself.</p><div class="recheck-buttons"><button class="secondary" data-recheck="cleared">Spike clears</button><button class="secondary" data-recheck="persistent">Still happening</button><button class="secondary" data-recheck="worse">User impact appears</button></div></div>
+      <button class="copy-button" id="copy">Copy evidence summary</button><p id="copy-status" class="small" role="status"></p>
+    </aside>
+  </div>
+  <section class="panel flow-panel" aria-labelledby="flow-title"><div class="panel-heading"><div><p class="eyebrow">03 / EXPLAIN THE ROUTE</p><h2 id="flow-title">From event to follow-up</h2></div><span class="small">Step Functions workflow · simulated</span></div><ol id="flow" class="flow"></ol><p id="flow-detail" class="flow-detail"></p></section>
+  <section class="panel audit-panel" aria-labelledby="audit-title"><div class="panel-heading"><div><p class="eyebrow">04 / KEEP THE REASON</p><h2 id="audit-title">Decision journal</h2></div><span class="small">This browser session only · latest 10</span></div><div id="audit" class="audit"><p class="empty">Run triage to record a decision, its evidence and the next action.</p></div></section>
+  <section class="panel" aria-labelledby="replay-title"><div class="panel-heading"><div><p class="eyebrow">05 / REPLAY EVIDENCE</p><h2 id="replay-title">Test the follow-up</h2></div></div><p>Import ordered evidence snapshots and compare decisions with expected outcomes. Files stay in this browser; imported evidence never changes the sliders above.</p><div class="run-row"><label>Replay JSON <input id="replay-file" type="file" accept=".json,application/json"></label><button id="replay-example" class="secondary">Run bundled examples</button><button id="replay-export" class="secondary">Export current evidence</button></div><p id="replay-status" role="status"></p><div id="replay-results"></div><div class="run-row"><button id="replay-json" class="secondary" disabled>Download JSON report</button><button id="replay-markdown" class="secondary" disabled>Download Markdown report</button></div></section>
+  <footer>Alert Lab is a design demo. No AWS execution, Jev inference, incident paging or background monitoring occurs.</footer>
+</main>
+<script type="module" src="replay-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "rejected",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "observe"
+        }
+      ]
+    },
+    {
+      "id": "client",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 60,
+            "success": 98,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "review"
+        }
+      ]
+    },
+    {
+      "id": "saturated",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 1700,
+            "cpu": 94,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "strained",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "page"
+        }
+      ]
+    },
+    {
+      "id": "probing",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "suspicious",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "security"
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "unknown",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": false,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "review"
+        }
+      ]
+    },
+    {
+      "id": "persistent-spike",
+      "steps": [
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 0
+          },
+          "expectedKind": "observe"
+        },
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 1
+          },
+          "expectedKind": "observe"
+        },
+        {
+          "evidence": {
+            "rate": 48,
+            "success": 99.9,
+            "latency": 250,
+            "cpu": 35,
+            "memory": 46,
+            "rejection": "expected",
+            "downstream": "healthy",
+            "security": "none",
+            "classifier": "normal",
+            "consistency": "consistent",
+            "samples": true,
+            "logs": true,
+            "metrics": true,
+            "journeys": true,
+            "rechecks": 2
+          },
+          "expectedKind": "review"
+        }
+      ]
+    }
+  ]
+}

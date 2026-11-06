@@ -1,0 +1,10 @@
+apiVersion: v2
+name: alert-lab
+description: Single-replica, shadow-mode alert follow-up service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.35.0-0"
+home: https://github.com/m1ngshum/alert-lab
+sources:
+  - https://github.com/m1ngshum/alert-lab

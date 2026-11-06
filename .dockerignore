@@ -1,0 +1,10 @@
+*
+!package.json
+!LICENSE
+!package-lock.json
+!server/
+!server/**
+!web/
+!web/**
+!bin/
+!bin/**

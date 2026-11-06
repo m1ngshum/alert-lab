@@ -1,0 +1,134 @@
+{{- if ne (int .Values.replicaCount) 1 }}{{ fail "SQLite requires replicaCount: 1" }}{{ end }}
+{{- $secret := required "credentials.existingSecret is required" .Values.credentials.existingSecret }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+data:
+  config.json: {{ .Values.config | toJson | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}
+automountServiceAccountToken: false
+---
+{{- if not .Values.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-data
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ .Values.config | toJson | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alert-lab
+          image: {{ printf "%s%s" .Values.image.repository (ternary (printf "@%s" .Values.image.digest) (printf ":%s" .Values.image.tag) (ne .Values.image.digest "")) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CONFIG_PATH
+              value: /etc/alert-lab/config.json
+            - name: SERVICE_TOKEN_FILE
+              value: /etc/alert-lab-auth/token
+            {{- if .Values.prometheusCredentials.existingSecret }}
+            - name: PROMETHEUS_TOKEN_FILE
+              value: /etc/prometheus-auth/token
+            {{- end }}
+          startupProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+          resources: {{ .Values.resources | toJson }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/alert-lab, readOnly: true}
+            - {name: auth, mountPath: /etc/alert-lab-auth, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.prometheusCredentials.existingSecret }}
+            - {name: prometheus-auth, mountPath: /etc/prometheus-auth, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config
+        - name: auth
+          secret:
+            secretName: {{ $secret | quote }}
+            items:
+              - {key: {{ .Values.credentials.tokenKey | quote }}, path: token}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" .Release.Name) .Values.persistence.existingClaim | quote }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.prometheusCredentials.existingSecret }}
+        - name: prometheus-auth
+          secret:
+            secretName: {{ .Values.prometheusCredentials.existingSecret | quote }}
+            items:
+              - {key: {{ .Values.prometheusCredentials.tokenKey | quote }}, path: token}
+        {{- end }}
