@@ -27,7 +27,8 @@ jobs:
       - run: node scripts/chart-check.mjs
       - run: gitleaks dir . --redact --no-banner
       - run: docker build -t alert-lab:local .
-      - run: trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 alert-lab:local
+      - run: python3 scripts/image-check.py alert-lab:local
+      - run: trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 alert-lab:local
       - run: python3 scripts/kind-test.py
   codeql:
     runs-on: ubuntu-24.04

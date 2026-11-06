@@ -23,14 +23,14 @@ Limits: 1 MiB input, 1,000 total steps, unique case IDs. Exit codes: 0 success, 
 
 ## Install the service
 
-The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.0` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.0`. Pin the image digest from the release for reproducible installations.
+The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.1` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.1`. Pin the image digest from the release for reproducible installations.
 
 Create a namespace and an existing Secret using a token file containing at least 32 random non-whitespace characters. Do not place tokens in Helm values or command-line literals:
 
 ```sh
 kubectl create namespace alert-lab
 kubectl -n alert-lab create secret generic alert-lab-auth --from-file=service-token=/private/path/service-token
-helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.0 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
+helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.1 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
 ```
 
 Review your kubeconfig/context before these user-run installation commands. The repository's automated kind test always uses its own isolated kubeconfig.

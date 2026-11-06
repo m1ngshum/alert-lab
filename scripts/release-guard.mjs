@@ -10,22 +10,22 @@ export async function reserveRelease(env,fetchImpl=fetch) {
   if(!checks.ok)throw new Error('Cannot verify CI.');
   const runs=(await checks.json()).check_runs;
   for(const name of ['verify','codeql'])if(!runs?.some(c=>c.name===name&&c.head_sha===env.GITHUB_SHA&&c.app?.slug==='github-actions'&&c.status==='completed'&&c.conclusion==='success'))throw new Error(`Missing successful ${name} for this commit.`);
-  for(const path of ['releases/tags/v0.1.0','git/ref/tags/v0.1.0']) {
+  for(const path of ['releases/tags/v0.1.1','git/ref/tags/v0.1.1']) {
     const response=await request(`https://api.github.com/repos/${repo}/${path}`,{headers});
     if(response.status!==404)throw new Error('Version already exists or its absence cannot be verified.');
   }
   // Include failed prior attempts' draft reservations, which may not have a Git tag yet.
   const releases=await request(`https://api.github.com/repos/${repo}/releases?per_page=100`,{headers});
-  if(!releases.ok||(await releases.json()).some(r=>r.tag_name==='v0.1.0'))throw new Error('Release version is already reserved or unavailable.');
+  if(!releases.ok||(await releases.json()).some(r=>r.tag_name==='v0.1.1'))throw new Error('Release version is already reserved or unavailable.');
   for(const name of ['m1ngshum/alert-lab','m1ngshum/charts/alert-lab']) {
     const tokenResponse=await request('https://ghcr.io/token?'+new URLSearchParams({service:'ghcr.io',scope:`repository:${name}:pull,push`}),{headers:{Authorization:'Basic '+Buffer.from(`${env.GITHUB_ACTOR}:${env.GH_TOKEN}`).toString('base64')}});
     if(!tokenResponse.ok)throw new Error('Cannot verify registry version absence.');
     const credentials=await tokenResponse.json();const token=credentials.token??credentials.access_token;
     if(!token)throw new Error('Registry did not supply scoped access.');
-    const response=await request(`https://ghcr.io/v2/${name}/manifests/0.1.0`,{method:'HEAD',headers:{Authorization:`Bearer ${token}`,Accept:'application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'}});
+    const response=await request(`https://ghcr.io/v2/${name}/manifests/0.1.1`,{method:'HEAD',headers:{Authorization:`Bearer ${token}`,Accept:'application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json'}});
     if(response.status!==404)throw new Error('Registry version exists or its absence cannot be verified.');
   }
-  const response=await request(`https://api.github.com/repos/${repo}/releases`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({tag_name:'v0.1.0',target_commitish:env.GITHUB_SHA,name:'Alert Lab v0.1.0',draft:true})});
+  const response=await request(`https://api.github.com/repos/${repo}/releases`,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({tag_name:'v0.1.1',target_commitish:env.GITHUB_SHA,name:'Alert Lab v0.1.1',draft:true})});
   if(response.status!==201)throw new Error('Could not reserve the release version.');
   return (await response.json()).id;
 }

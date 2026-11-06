@@ -28,7 +28,7 @@ Helm retains chart-created PVCs on uninstall. Do not delete a retained PVC until
 
 ## Artifact verification
 
-Use the versioned image digest in the GitHub release. BuildKit publishes image provenance and SBOM attestations. Verify GitHub provenance with `gh attestation verify oci://ghcr.io/m1ngshum/alert-lab@sha256:<digest> --repo m1ngshum/alert-lab`. Download the release's chart archive and verify its provenance with `gh attestation verify alert-lab-0.1.0.tgz --repo m1ngshum/alert-lab`. The release also includes readable CycloneDX inventories for image and chart.
+Use the versioned image digest in the GitHub release. BuildKit publishes image provenance and SBOM attestations. Verify GitHub provenance with `gh attestation verify oci://ghcr.io/m1ngshum/alert-lab@sha256:<digest> --repo m1ngshum/alert-lab`. Download the release's chart archive and verify its provenance with `gh attestation verify alert-lab-0.1.1.tgz --repo m1ngshum/alert-lab`. The release also includes readable CycloneDX inventories for image and chart.
 
 ## Failed release recovery
 
