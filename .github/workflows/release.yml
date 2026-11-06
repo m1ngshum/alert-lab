@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write
+      checks: read
       packages: write
       id-token: write
       attestations: write

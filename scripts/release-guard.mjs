@@ -18,7 +18,7 @@ export async function reserveRelease(env,fetchImpl=fetch) {
   const releases=await request(`https://api.github.com/repos/${repo}/releases?per_page=100`,{headers});
   if(!releases.ok||(await releases.json()).some(r=>r.tag_name==='v0.1.0'))throw new Error('Release version is already reserved or unavailable.');
   for(const name of ['m1ngshum/alert-lab','m1ngshum/charts/alert-lab']) {
-    const tokenResponse=await request('https://ghcr.io/token?'+new URLSearchParams({service:'ghcr.io',scope:`repository:${name}:pull`}),{headers:{Authorization:'Basic '+Buffer.from(`${env.GITHUB_ACTOR}:${env.GH_TOKEN}`).toString('base64')}});
+    const tokenResponse=await request('https://ghcr.io/token?'+new URLSearchParams({service:'ghcr.io',scope:`repository:${name}:pull,push`}),{headers:{Authorization:'Basic '+Buffer.from(`${env.GITHUB_ACTOR}:${env.GH_TOKEN}`).toString('base64')}});
     if(!tokenResponse.ok)throw new Error('Cannot verify registry version absence.');
     const credentials=await tokenResponse.json();const token=credentials.token??credentials.access_token;
     if(!token)throw new Error('Registry did not supply scoped access.');
