@@ -5,7 +5,7 @@ from pathlib import Path
 
 root=Path('/build');pin=json.loads((root/'node-source.json').read_text())
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
-def run(*command,**options):return subprocess.run(command,check=True,timeout=7200,**options)
+def run(*command,**options):return subprocess.run(command,check=True,timeout=9000,**options)
 archive=root/'node.tar.xz'
 with urllib.request.urlopen(pin['url'],timeout=120) as response:archive.write_bytes(response.read())
 assert sha(archive)==pin['sha256'],'Node source checksum mismatch'
