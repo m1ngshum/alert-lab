@@ -28,7 +28,7 @@ Helm retains chart-created PVCs on uninstall. Do not delete a retained PVC until
 
 ## Artifact verification
 
-Use the versioned image digest in the GitHub release. BuildKit publishes image provenance and SBOM attestations. Verify GitHub provenance with `gh attestation verify oci://ghcr.io/m1ngshum/alert-lab@sha256:<digest> --repo m1ngshum/alert-lab`. Download the release's chart archive and verify its provenance with `gh attestation verify alert-lab-0.1.1.tgz --repo m1ngshum/alert-lab`. The release also includes readable CycloneDX inventories for image and chart.
+Use the versioned image digest in the GitHub release. Native build jobs attest their tested Docker image archives. The publishing job verifies those archives against the same source commit and release workflow, loads and rechecks them, and promotes the exact images without rebuilding. GitHub provenance covers the final image index, chart, SBOMs and custom Node receipts. Verify image provenance with `gh attestation verify oci://ghcr.io/m1ngshum/alert-lab@sha256:<digest> --repo m1ngshum/alert-lab`. Download the release's chart archive and verify it with `gh attestation verify alert-lab-0.1.2.tgz --repo m1ngshum/alert-lab`. The release includes readable CycloneDX inventories and `node-build-amd64.json` / `node-build-arm64.json` with source/patch pins, tested binary hashes and regression results. See SECURITY.md for the custom Node backport and maintenance scope.
 
 ## Failed release recovery
 

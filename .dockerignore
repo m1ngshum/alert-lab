@@ -8,3 +8,16 @@
 !web/**
 !bin/
 !bin/**
+!scripts/
+!scripts/build-node.py
+!test/
+!test/node-zlib.c
+!patches/
+!patches/node-zlib.patch
+!runtime/
+!runtime/node-source.json
+!test/*.test.mjs
+!scripts/release-guard.mjs
+!tools.lock.json
+!scripts/node-sbom.py
+!scripts/check-node.py

@@ -21,3 +21,11 @@ Model: gpt-6-astra. Reviewed locally on 7 November 2026 before public source/art
 Reviewed the minimal runtime library closure, retained Debian package inventory/licenses, stricter unsuppressed scan gates, version consistency and immutable release guard. Independently passed all 16 tests, 56 policy assertions, Helm checks and both exact final images' hardened SQLite/backup, compression and TLS checks. Both refreshed architecture scans contained zero HIGH/CRITICAL findings and zero secrets. AMD64 local execution used emulation; hosted release also tests both architectures.
 
 The two Debian OS-package findings are removed. Node still embeds the affected gzip file code; review found no application path through Node's JS compression API or Alert Lab. This scoped assessment does not establish universal non-exploitability. See SECURITY.md. Real kind restart/Helm-upgrade persistence passed separately; the reviewer did not repeat that entire integration test. Hosted CI and published-artifact verification remain release gates.
+
+## v0.1.2 source review
+
+Model: gpt-6-astra. Reviewed locally on 7 November 2026 before public source export. Source disposition: approved for a public PR and native CI, with artifact publication blocked until both native builds and follow-up artifact review pass.
+
+Review fixed two findings: promote exact tested image archives instead of rebuilding after scans, and require the precise failing pointer/length in the unpatched binary control. The final index uses immutable pushed child digests and verifies their image config IDs against the tested images. Source/archive/patch hashes, custom-binary receipt verification, native CI aggregation, release-tag reuse guards, per-architecture SBOM evidence and truthful provenance documentation were reviewed.
+
+At source review, all 18 JavaScript tests and the original 56 policy assertions, Helm checks and secret/dependency scans passed. The stronger official-binary negative control passed separately. The rebuilt binary and native architecture checks remained pending; this source approval is not release approval. No reviewer executed candidate code or published artifacts during that source review.

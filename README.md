@@ -23,14 +23,14 @@ Limits: 1 MiB input, 1,000 total steps, unique case IDs. Exit codes: 0 success, 
 
 ## Install the service
 
-The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.1` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.1`. Pin the image digest from the release for reproducible installations.
+The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.2` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.2`. Pin the image digest from the release for reproducible installations.
 
 Create a namespace and an existing Secret using a token file containing at least 32 random non-whitespace characters. Do not place tokens in Helm values or command-line literals:
 
 ```sh
 kubectl create namespace alert-lab
 kubectl -n alert-lab create secret generic alert-lab-auth --from-file=service-token=/private/path/service-token
-helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.1 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
+helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.2 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
 ```
 
 Review your kubeconfig/context before these user-run installation commands. The repository's automated kind test always uses its own isolated kubeconfig.
@@ -99,5 +99,7 @@ The test creates and deletes its own kind cluster and kubeconfig. Real Prometheu
 ## Development and release
 
 Use the pinned current Node/npm versions in `tools.lock.json` and `package.json`, then `npm ci` and `npm test`. CI verifies tests, chart assertions, secret/dependency/image scans, real kind integration and CodeQL. Public-release workflow is manually invoked on protected `main`; it checks successful verification for that exact commit, publishes versioned multi-architecture images/OCI chart and attaches provenance and SBOMs.
+
+The container builds a checksum-pinned Node source release with the upstream bundled-zlib backport in `patches/node-zlib.patch`. The custom version, source/patch pins, binary digest and direct regression results are included in each image and release. Both architectures build and test natively; the first source build is substantially slower than pulling the upstream binary, and later builds reuse compilation layers. Local development Node installations are unchanged. See [SECURITY.md](SECURITY.md) for the fix and maintenance scope.
 
 No runtime credentials or evidence enter the public playground. Reporting reduced paging, incident accuracy or production readiness requires historical evaluation and shadow-operation evidence that this project does not yet have.
