@@ -33,3 +33,18 @@ At source review, all 18 JavaScript tests and the original 56 policy assertions,
 Local ARM64 validation completed after that source review: the custom executable passed both direct bundled-zlib failure/recovery cases, all 18 application tests and 56 policy assertions, and all 89 pinned upstream compression test files. Hardened receipt/binary-identity, TLS, native SQLite/backup checks passed. Trivy reported zero HIGH/CRITICAL findings and zero secrets without exclusions. Real kind integration passed evidence collection, bounded rechecks, restart recovery and PVC history across Helm upgrade; the owned cluster was deleted. This supplements the source review and does not substitute for native CI or the exact prepared-artifact review. Final artifact approval and hashes must be recorded with the protected release run's environment approval.
 
 Astra also reviewed the custom build's missing Temporal support: the pinned upstream configuration disables it when Rust tools are absent, and no Temporal use was found in Alert Lab or its runtime dependencies. Disclosing the service-specific npm/Temporal omissions was accepted without adding an unused toolchain. Final image checks assert Temporal is absent; full Node feature parity is not claimed.
+
+
+## Isolated full-VM dogfood review
+
+Model: gpt-6-astra. Local source and evidence review on 8 November 2026, before public source export. The final lab uses a separate Lima 2.3.0 VZ VM after OrbStack 2.2.5 startup was observed changing existing Docker configuration.
+
+Review fixes include binding bootstrap and ownership to VM/user/container identity and kubeconfig bytes, forcing local rootless Podman, waiting for real service routing after restart, handling ConfigMap symlink entrypoints, and disabling Lima host-loopback access, proxy inheritance and host DNS. Plain mode disables Mac mounts, guest integration and dynamic port forwarding. The guest firewall is explicitly described as a guest-controlled guard.
+
+Validation passed: 21 local Node tests, the original 56 policy assertions, 12 Python launcher tests, and 19 runtime tests plus policy assertions in the pinned published Node container inside the full VM. Helm lint/render and source/history secret scans passed. The minimal runtime intentionally lacks Python, so the Python-based SBOM test was run in the local full suite rather than that runtime container.
+
+Real Prometheus/Alertmanager delivery produced observe/observe/review with recheck counts 0/1/2 at intervals of 301086 and 300366 milliseconds. Duplicate delivery preserved scheduled work; real source resolution preserved policy conclusions and cancelled pending work. JSON/Markdown replay passed all three expectations and repeated JSON output was byte-identical. Service restart, node stop/start, Helm upgrade and a full VM reboot retained evidence, decisions, the same PVC and a pending recheck's exact due time.
+
+Effective VM configuration, active firewall after reboot, blocked host/private/metadata connections, public HTTPS, loopback-only tunnel, narrow-screen controls and keyboard focus were checked. All 758 original Docker/kubeconfig file hashes and six Docker Desktop tool/socket links remained unchanged throughout the Lima workflow. Docker Desktop remained healthy on desktop-linux. No production cluster was used.
+
+Final Astra disposition: approved for a public source PR and hosted CI, with no actionable findings remaining. Astra independently inspected the saved configuration, replay/decision records, pending-restart case and four host-audit receipts; it did not independently rerun VM integration, browser checks or live host comparisons. Hosted CI is required before merge. This does not approve a new production image/chart release.

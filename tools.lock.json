@@ -53,6 +53,11 @@
         "version": "v0.33.0",
         "url": "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-darwin-arm64",
         "sha256": "0c8c7dbe5e23594a198b786c4bc13dacc101fa6196b0cb0b23a1ca44e61f4b4f"
+      },
+      "linux-arm64": {
+        "version": "v0.33.0",
+        "url": "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-arm64",
+        "sha256": "20022bee6cfcd5086cb7234d218e3454e6090022f2a8f55d1fa7fcf42c3867a2"
       }
     },
     "trivy": {
@@ -106,8 +111,36 @@
         "version": "v4.3.1",
         "url": "https://get.helm.sh/helm-v4.3.1-darwin-arm64.tar.gz",
         "sha256": "6b4e61c8cd27d99e5a801e63ff25dd5c70b36875c2cd659d3e9ce6b76fc23198"
+      },
+      "linux-arm64": {
+        "version": "v4.3.1",
+        "url": "https://get.helm.sh/helm-v4.3.1-linux-arm64.tar.gz",
+        "sha256": "8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88"
+      }
+    },
+    "kubectl": {
+      "linux-arm64": {
+        "version": "v1.37.1",
+        "url": "https://dl.k8s.io/release/v1.37.1/bin/linux/arm64/kubectl",
+        "sha256": "ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acffc3286c8c7"
+      },
+      "linux-amd64": {
+        "version": "v1.37.1",
+        "url": "https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl",
+        "sha256": "65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
       }
     }
   },
-  "npm": "12.2.2"
+  "npm": "12.2.2",
+  "dogfoodVm": {
+    "lima": {
+      "version": "2.3.0",
+      "url": "https://github.com/lima-vm/lima/releases/download/v2.3.0/lima-2.3.0-Darwin-arm64.tar.gz",
+      "sha256": "b7af444bd8f91d3c307477e562f2cf3bd7595d62b9429185e4fa841563578cfc"
+    },
+    "ubuntuImage": {
+      "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-arm64.img",
+      "sha256": "50e24e1fb79e89116e939d90aa7738f7af48c442fa1bc2510131e0b39c50348e"
+    }
+  }
 }

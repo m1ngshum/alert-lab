@@ -21,6 +21,7 @@ COPY server ./server
 COPY web ./web
 COPY bin ./bin
 COPY test/*.test.mjs ./test/
+COPY examples/dogfood/workload.mjs ./examples/dogfood/workload.mjs
 COPY scripts/release-guard.mjs scripts/node-sbom.py ./scripts/
 COPY tools.lock.json ./
 COPY runtime/node-source.json ./runtime/
