@@ -96,6 +96,8 @@ PATH="$PWD/.tools:$PATH" python3 scripts/kind-test.py
 
 The test creates and deletes its own kind cluster and kubeconfig. Real Prometheus/Alertmanager use explicitly synthetic constant-vector evidence. It verifies webhook delivery, evidence collection, bounded follow-up, restart recovery and Helm upgrade persistence. Only its disposable test database clock is advanced to avoid a ten-minute wait; production intervals remain five minutes. Images are pinned in `examples/images.lock.json`.
 
+For persistent manual dogfooding with real recheck intervals, see [the isolated full-VM lab](examples/dogfood/README.md).
+
 ## Development and release
 
 Use the pinned current Node/npm versions in `tools.lock.json` and `package.json`, then `npm ci` and `npm test`. CI verifies tests, chart assertions, secret/dependency/image scans, real kind integration and CodeQL. Public-release workflow is manually invoked on protected `main`; it checks successful verification for that exact commit, publishes versioned multi-architecture images/OCI chart and attaches provenance and SBOMs.

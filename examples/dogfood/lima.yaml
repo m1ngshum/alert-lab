@@ -1,0 +1,77 @@
+minimumLimaVersion: 2.3.0
+vmType: vz
+arch: aarch64
+plain: true
+cpus: 4
+memory: 6GiB
+disk: 32GiB
+images:
+  - location: https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-arm64.img
+    arch: aarch64
+    digest: sha256:50e24e1fb79e89116e939d90aa7738f7af48c442fa1bc2510131e0b39c50348e
+mounts: []
+containerd:
+  system: false
+  user: false
+ssh:
+  forwardAgent: false
+  loadDotSSHPubKeys: false
+user:
+  name: lab
+  comment: Alert Lab sandbox
+  uid: 501
+  home: /home/lab
+hostResolver:
+  enabled: false
+dns: [1.1.1.1, 9.9.9.9]
+networkOpts:
+  hostLoopback: false
+propagateProxyEnv: false
+provision:
+  - mode: system
+    script: |
+      #!/bin/sh
+      set -eu
+      hostnamectl set-hostname alert-lab-dogfood
+      apt-get update
+      apt-get install -y nftables git ca-certificates python3
+      mkdir -p /etc/systemd/resolved.conf.d
+      printf '[Resolve]\nDNS=1.1.1.1 9.9.9.9\nDomains=~.\n' > /etc/systemd/resolved.conf.d/alert-lab.conf
+      systemctl restart systemd-resolved
+      wan=$(ip -4 route show default | awk 'NR==1 {print $5}')
+      case "$wan" in ''|*[!a-zA-Z0-9_-]*) exit 1;; esac
+      cat > /etc/alert-lab-egress.nft <<RULES
+      table inet alert_lab {
+        chain output {
+          type filter hook output priority -10; policy accept;
+          oifname "lo" accept
+          ct state established,related accept
+          oifname "$wan" ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/4 } reject
+          oifname "$wan" meta nfproto ipv6 reject
+        }
+        chain forward {
+          type filter hook forward priority -10; policy accept;
+          ct state established,related accept
+          oifname "$wan" ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 198.18.0.0/15, 224.0.0.0/4 } reject
+          oifname "$wan" meta nfproto ipv6 reject
+        }
+      }
+      RULES
+      cat > /etc/systemd/system/alert-lab-egress.service <<'UNIT'
+      [Unit]
+      Description=Alert Lab guest egress isolation
+      Wants=network-pre.target
+      Before=network-pre.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStartPre=-/usr/sbin/nft delete table inet alert_lab
+      ExecStart=/usr/sbin/nft -f /etc/alert-lab-egress.nft
+      [Install]
+      WantedBy=multi-user.target
+      UNIT
+      systemctl daemon-reload
+      systemctl enable alert-lab-egress.service
+      systemctl restart alert-lab-egress.service
+      printf '%s\n%s\n' alert-lab-dogfood "$(cat /etc/machine-id)" > /etc/alert-lab-vm
+      chmod 644 /etc/alert-lab-vm

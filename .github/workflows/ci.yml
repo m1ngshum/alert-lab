@@ -20,6 +20,7 @@ jobs:
       - run: npm install --global npm@12.2.2
       - run: npm ci
       - run: npm test
+      - run: python3 -m unittest discover -s test -p "*_test.py"
       - run: npm run build:demo
       - run: npm audit --audit-level=high
       - run: python3 scripts/install-tools.py helm kind trivy gitleaks

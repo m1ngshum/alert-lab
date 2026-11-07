@@ -21,3 +21,7 @@
 !tools.lock.json
 !scripts/node-sbom.py
 !scripts/check-node.py
+
+!examples/
+!examples/dogfood/
+!examples/dogfood/workload.mjs
