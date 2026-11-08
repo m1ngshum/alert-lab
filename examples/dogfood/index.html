@@ -26,6 +26,9 @@
 <p>Evidence JSON can be imported into the playground. Reports contain ordered actual/expected outcomes and the policy version. Replay does not change the episode or schedule work.</p>
 <p id="status" role="status" aria-live="polite">Loading controls…</p>
 <h2>Ten-minute exercise</h2>
+<p class="controls"><button id="auto-run" disabled>Start ten-minute exercise</button><button id="cancel-run" disabled>Cancel and recover</button></p>
+<p id="run-status" role="status">Starts a fresh spike, waits for both recorded rechecks and human review, recovers, then downloads a ZIP containing JSON and Markdown reports. Keep this page open and visible. Prior episodes must be resolved.</p>
+<p>The ZIP contains replay.json and replay.md. If your browser blocks its download, use Report JSON and Report Markdown after completion. Closing this page stops automation; it does not recover the workload.</p>
 <label for="exercise">Recorded recheck progress</label>
 <progress id="exercise" max="2" value="0" aria-describedby="exercise-state"></progress>
 <p id="exercise-state">Select an episode to watch its two rechecks.</p>
