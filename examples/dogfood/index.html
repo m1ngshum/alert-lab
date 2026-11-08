@@ -14,6 +14,8 @@
   <button id="refresh" disabled>Refresh episodes</button>
   <button id="more" disabled>Load more episodes</button>
 </p>
+<label class="watch"><input id="auto" type="checkbox" checked> Auto-refresh every 5 seconds</label>
+<p id="live">Waiting for a sandbox token. Polling pauses while this page is hidden.</p>
 <label>Episode <select id="episode" disabled><option value="">Refresh episodes to choose one</option></select></label>
 <p class="controls">
   <button id="replay" disabled>Run replay</button>
@@ -23,6 +25,9 @@
 </p>
 <p>Evidence JSON can be imported into the playground. Reports contain ordered actual/expected outcomes and the policy version. Replay does not change the episode or schedule work.</p>
 <p id="status" role="status" aria-live="polite">Loading controls…</p>
+<h2>Live timeline</h2>
+<ol id="timeline" aria-label="Live episode timeline"></ol>
+<h2>Replay results</h2>
 <ol id="steps" aria-label="Ordered replay steps"></ol>
 <script type="module" src="/app.js"></script>
 </html>
