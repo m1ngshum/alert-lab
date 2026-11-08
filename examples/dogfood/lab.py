@@ -97,11 +97,14 @@ def up():
     prom={'global':{'scrape_interval':'2s','evaluation_interval':'2s'},'scrape_configs':[{'job_name':'synthetic','static_configs':[{'targets':['workload:8081']}]}],'rule_files':['/fixture/rules.json'],'alerting':{'alertmanagers':[{'static_configs':[{'targets':['alertmanager:9093']}]}]}}
     rules={'groups':[{'name':'synthetic','rules':[{'alert':'AlertLabDogfood','expr':'alert_lab_rate > 10','for':'5s','labels':{'service':'synthetic'}}]}]}
     am={'route':{'receiver':'lab','group_wait':'1s','group_interval':'5s','repeat_interval':'1h'},'receivers':[{'name':'lab','webhook_configs':[{'url':'http://alert-lab:8080/v1/webhooks/alertmanager','send_resolved':True,'http_config':{'authorization':{'credentials_file':'/auth/token'}}}]}]}
-    apply(resource('ConfigMap','fixture',data={'prometheus.json':json.dumps(prom),'rules.json':json.dumps(rules),'alertmanager.json':json.dumps(am),'workload.mjs':(ROOT/'examples/dogfood/workload.mjs').read_text()}))
+    assets={name:(ROOT/'examples/dogfood'/name).read_text() for name in ['workload.mjs','index.html','ui.js','styles.css']}
+    apply(resource('ConfigMap','fixture',data={'prometheus.json':json.dumps(prom),'rules.json':json.dumps(rules),'alertmanager.json':json.dumps(am),**assets}))
     images=json.loads((ROOT/'examples/images.lock.json').read_text())
     components=[('workload',IMAGE,['/usr/local/bin/node','/fixture/workload.mjs'],8081,True),('prometheus',images['prometheus']['image'],['/bin/prometheus','--config.file=/fixture/prometheus.json','--storage.tsdb.path=/data'],9090,False),('alertmanager',images['alertmanager']['image'],['/bin/alertmanager','--config.file=/fixture/alertmanager.json','--storage.path=/data'],9093,True)]
     for name,image,command,port,auth in components:
-        apply(pod(name,image,command,port,auth));apply(resource('Service',name,spec={'selector':{'app':name},'ports':[{'port':port,'targetPort':port}]}))
+        deployment=pod(name,image,command,port,auth)
+        if name=='workload':deployment['spec']['template']['metadata']['annotations']={'checksum/workload':hashlib.sha256(json.dumps(assets,sort_keys=True).encode()).hexdigest()}
+        apply(deployment);apply(resource('Service',name,spec={'selector':{'app':name},'ports':[{'port':port,'targetPort':port}]}))
     queries={}
     categories={'rejection':{'0':'unexpected','1':'expected'},'downstream':{'0':'outage','1':'healthy'},'security':{'0':'unknown','1':'none'},'consistency':{'1':'consistent'}}
     for field in ['rate','success','latency','cpu','memory','rejection','downstream','security','consistency','samples','logs','metrics','journeys']:

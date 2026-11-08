@@ -47,7 +47,7 @@ Bootstrap installs rootless Podman and enables lingering for `lab`, so the kind 
 
 ## Manual exercises
 
-Inside the guest:
+Use the browser controls below for spike, recovery and replay without the CLI. Optional guest commands:
 
 ```sh
 python3 examples/dogfood/lab.py scenario spike
@@ -80,7 +80,11 @@ Run `lab.py tunnel` in a guest terminal. From a second Mac terminal with the sam
 ssh -F "$LIMA_HOME/alert-lab-dogfood/ssh.config" -S none -o ForwardAgent=no -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:8780:127.0.0.1:8780 lima-alert-lab-dogfood
 ```
 
-Open `http://127.0.0.1:8780/`. Run `lab.py token` inside the guest and paste the sandbox-only token into the password field. The page keeps it in memory only; requests use the Authorization header. Do not put tokens in URLs, shell arguments, screenshots or committed files. Controls and episode/replay data require authentication; `/`, `/app.js`, `/healthz` and `/metrics` contain only public synthetic fixture information.
+Open `http://127.0.0.1:8780/`. Run `lab.py token` inside the guest and paste the sandbox-only token into the password field. The page keeps it in memory only; requests use the Authorization header. Do not put tokens in URLs, shell arguments, screenshots or committed files. Controls and episode/replay data require authentication; static UI/policy assets, `/healthz` and `/metrics` contain only public synthetic fixture information.
+
+Click **Spike**, wait about ten seconds and **Refresh episodes**. Select an episode and **Run replay** to see ordered actual/expected decisions and recheck counts. Keep the spike active for ten minutes to record both real rechecks, then click **Recovery**. Refresh and replay again to include newly recorded evidence. Use **Load more episodes** when older pages are available.
+
+After replay, download **Evidence JSON** (importable into the playground), **Report JSON** or **Report Markdown**. Replay runs locally in the browser using the shared policy; it never schedules work. Changing the token, episode or scenario, or refreshing episodes, clears the previous report and disables downloads until another successful replay. Episodes without recorded decisions show a retry message. Reloading the page clears the token. Updating fixture assets rolls the synthetic workload back to baseline while retaining service history and its PVC; reconnect the guest tunnel after that rollout.
 
 ## Stop, resume and destruction
 
