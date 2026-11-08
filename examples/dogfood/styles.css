@@ -1,0 +1,7 @@
+body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; }
+label { display: grid; gap: .4rem; }
+input, select, button { font: inherit; min-width: 0; max-width: 100%; box-sizing: border-box; min-height: 2.75rem; padding: .5rem; }
+.controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+#status, #steps { overflow-wrap: anywhere; }
+#steps li { margin-bottom: 1rem; }
+select { width: 100%; }

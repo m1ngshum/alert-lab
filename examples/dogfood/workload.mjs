@@ -19,12 +19,16 @@ export function evidence(samples,cpu,memory,unrecognized) {
 }
 export function createLab(token, upstream='http://alert-lab:8080') {
   let scenario='baseline',samples=[],unrecognized=false,cpu=0,previous=process.cpuUsage(),last=performance.now();
+  const files={'/':[new URL('./index.html',import.meta.url),'text/html'],'/app.js':[new URL('./ui.js',import.meta.url),'text/javascript'],'/styles.css':[new URL('./styles.css',import.meta.url),'text/css'],
+    '/replay.js':['web/replay.js','text/javascript'],'/policy.js':['web/policy.js','text/javascript']};
   const server=createServer(async(req,res)=>{
     let url;try{url=new URL(req.url,'http://lab');}catch{res.writeHead(400);res.end();return;}
     const send=(status,value,type='application/json')=>{res.writeHead(status,{'content-type':type,'cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'self'; frame-ancestors 'none'; object-src 'none'"});res.end(type==='application/json'?JSON.stringify(value):value);};
     if(req.method==='GET'&&url.pathname==='/healthz')return send(200,{status:'ok'});
-    if(req.method==='GET'&&url.pathname==='/')return send(200,'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Alert Lab dogfood</title><h1>Alert Lab dogfood</h1><p>Synthetic traffic only. Real five-minute rechecks; keep a spike for ten minutes to see bounded human review.</p><label>Sandbox token <input id="token" type="password" autocomplete="off"></label><p><button data-scenario="baseline">Baseline</button> <button data-scenario="spike">Spike</button> <button data-scenario="recovery">Recovery</button> <button id="refresh">Refresh episodes</button></p><pre id="result" aria-live="polite"></pre><script src="/app.js"></script></html>','text/html');
-    if(req.method==='GET'&&url.pathname==='/app.js')return send(200,`const result=document.querySelector('#result');async function call(path,method='GET'){try{const r=await fetch(path,{method,headers:{Authorization:'Bearer '+document.querySelector('#token').value}});result.textContent=JSON.stringify(await r.json(),null,2)}catch(e){result.textContent=String(e)}}document.querySelectorAll('[data-scenario]').forEach(b=>b.addEventListener('click',()=>call('/scenario/'+b.dataset.scenario,'POST')));document.querySelector('#refresh').addEventListener('click',()=>call('/episodes'));`,'text/javascript');
+    if(req.method==='GET'&&files[url.pathname]) {
+      try {const [file,type]=files[url.pathname];return send(200,readFileSync(file,'utf8'),type);}
+      catch {return send(503,{error:'Lab assets unavailable'});}
+    }
     if(req.method==='GET'&&url.pathname==='/metrics') {
       const used=process.cpuUsage(previous),now=performance.now();cpu=Math.min(100,100*(used.user+used.system)/((now-last)*1000));previous=process.cpuUsage();last=now;
       const e=evidence(samples,cpu,Math.min(100,100*process.memoryUsage().rss/(256*1024*1024)),unrecognized);
@@ -36,8 +40,9 @@ export function createLab(token, upstream='http://alert-lab:8080') {
       const name=url.pathname.slice('/scenario/'.length);if(!['baseline','spike','recovery'].includes(name))return send(400,{error:'Unknown scenario'});
       scenario=name;samples=[];unrecognized=false;return send(200,{scenario,synthetic:true});
     }
-    if(req.method==='GET'&&(url.pathname==='/episodes'||/^\/episodes\/[a-f0-9]+(?:\/replay)?$/.test(url.pathname))) {
-      try {const response=await fetch(upstream+'/v1'+url.pathname,{headers:{Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(5000)});return send(response.status,await response.json());}
+    if(req.method==='GET'&&(url.pathname==='/episodes'||/^\/episodes\/[a-f0-9]{64}(?:\/replay)?$/.test(url.pathname))) {
+      if(url.pathname==='/episodes'?[...url.searchParams].some(([key,value])=>!['cursor','limit'].includes(key)||!/^\d+$/.test(value)):url.search)return send(400,{error:'Invalid episode parameters'});
+      try {const response=await fetch(upstream+'/v1'+url.pathname+url.search,{headers:{Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(5000)});return send(response.status,await response.json());}
       catch{return send(502,{error:'Alert Lab unavailable'});}
     }
     return send(404,{error:'Not found'});

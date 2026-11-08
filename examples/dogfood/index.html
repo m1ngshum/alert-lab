@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Alert Lab dogfood</title>
+<link rel="stylesheet" href="/styles.css">
+<h1>Alert Lab dogfood</h1>
+<p>Synthetic traffic only. Real five-minute rechecks; keep a spike for ten minutes to see bounded human review.</p>
+<label>Sandbox token <input id="token" type="password" autocomplete="off"></label>
+<p class="controls">
+  <button data-scenario="baseline" disabled>Baseline</button>
+  <button data-scenario="spike" disabled>Spike</button>
+  <button data-scenario="recovery" disabled>Recovery</button>
+  <button id="refresh" disabled>Refresh episodes</button>
+  <button id="more" disabled>Load more episodes</button>
+</p>
+<label>Episode <select id="episode" disabled><option value="">Refresh episodes to choose one</option></select></label>
+<p class="controls">
+  <button id="replay" disabled>Run replay</button>
+  <button id="evidence" disabled>Evidence JSON</button>
+  <button id="json" disabled>Report JSON</button>
+  <button id="markdown" disabled>Report Markdown</button>
+</p>
+<p>Evidence JSON can be imported into the playground. Reports contain ordered actual/expected outcomes and the policy version. Replay does not change the episode or schedule work.</p>
+<p id="status" role="status" aria-live="polite">Loading controls…</p>
+<ol id="steps" aria-label="Ordered replay steps"></ol>
+<script type="module" src="/app.js"></script>
+</html>
