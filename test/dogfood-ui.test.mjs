@@ -17,12 +17,12 @@ class Element {
  async fire(name){return this.listeners[name]?.();}
 }
 function browser() {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown'].map(id=>[id,new Element()]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown'].map(id=>[id,new Element()]));
  const scenarios=['spike','recovery'].map(name=>Object.assign(new Element(),{dataset:{scenario:name},textContent:name}));
  const document={hidden:false,querySelector:selector=>elements[selector.slice(1)],querySelectorAll:()=>scenarios,createElement:()=>new Element(),createDocumentFragment:()=>new Element()};
  const fixture=JSON.parse(readFileSync(new URL('../web/examples.json',import.meta.url),'utf8')).cases.find(item=>item.id==='persistent-spike').steps;
  const id='a'.repeat(64),other='b'.repeat(64),start='2026-11-08T00:00:00.000Z';
- let count=1,resolved=false,error=0,hold=null,heldPath='',tick;
+ let count=1,resolved=false,error=0,hold=null,heldPath='',tick,paint,now=Date.parse(start);
  const calls=[];let rows=[{id,seq:1,starts_at:start,source_status:'firing',rechecks:1}];
  const fetch=async(path,options)=>{
   calls.push({path,options});if(hold&&(!heldPath||path===heldPath))await hold;
@@ -32,8 +32,8 @@ function browser() {
   else data={id:path.split('/').at(-1),starts_at:start,source_status:resolved?'resolved':'firing',next_due:count<3?Date.parse(start)+count*300000:null,completed_at:resolved?Date.parse(start)+610000:null,decisions:fixture.slice(0,count).map((step,i)=>({evidence:step.evidence,decision:{kind:step.expectedKind},created_at:Date.parse(start)+i*300000}))};
   return {ok:!error,status:error||200,json:async()=>data};
  };
- runInNewContext(readFileSync(new URL('../examples/dogfood/ui.js',import.meta.url),'utf8').replace(/^import .*\n/,''),{document,fetch,parseSuite,replay,markdown,AbortSignal,AbortController,setInterval:fn=>{tick=fn;},Date,URL,Blob,setTimeout});
- return {elements,document,scenarios,calls,tick:()=>tick(),setCount:n=>{count=n;},resolve:()=>{resolved=true;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
+ runInNewContext(readFileSync(new URL('../examples/dogfood/ui.js',import.meta.url),'utf8').replace(/^import .*\n/,''),{document,fetch,parseSuite,replay,markdown,AbortSignal,AbortController,setInterval:(fn,ms)=>{if(ms===5000)tick=fn;else paint=fn;},Date:class extends Date {static now(){return now;}},URL,Blob,setTimeout});
+ return {elements,document,scenarios,calls,tick:()=>tick(),paint:()=>paint(),advance:ms=>{now+=ms;},setCount:n=>{count=n;},resolve:()=>{resolved=true;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
 }
 test('live UI polls persisted decisions, follows new episodes, preserves selection and separates resolution',async()=>{
  const b=browser(),e=b.elements;
@@ -76,4 +76,23 @@ test('following a new episode clears the old report before its delayed detail ar
  assert.equal(e.episode.value,b.other);assert.equal(e.timeline.children.length,0);assert.equal(e.steps.children.length,0);
  assert.equal(e.evidence.disabled,true);assert.equal(e.json.disabled,true);assert.equal(e.markdown.disabled,true);
  release();b.hold(null);await poll;assert.equal(e.json.disabled,false);assert.match(e.status.textContent,/1 passed/);
+});
+
+test('countdown uses the due time and progress requires recorded decisions, including pause/stale/overdue/resolution',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';await b.tick();
+ assert.match(e.countdown.textContent,/5:00/);assert.match(e['exercise-state'].textContent,/0\/2/);
+ b.advance(1000);b.paint();assert.match(e.countdown.textContent,/4:59/);
+ e.auto.checked=false;await e.auto.fire('change');assert.match(e.countdown.textContent,/paused/);
+ e.auto.checked=true;await e.auto.fire('change');
+ b.advance(15000);b.paint();assert.match(e.countdown.textContent,/stale/);
+ b.advance(284000);await b.tick();assert.match(e.countdown.textContent,/due; waiting/);assert.match(e['exercise-state'].textContent,/0\/2/);
+ b.setCount(2);await b.tick();assert.equal(e.exercise.value,1);assert.match(e.countdown.textContent,/5:00/);
+ b.advance(300000);await b.tick();assert.equal(e.exercise.value,1);assert.match(e.countdown.textContent,/due; waiting/);
+ b.setCount(3);await b.tick();assert.equal(e.exercise.value,2);assert.match(e['exercise-state'].textContent,/human review recommended/);assert.match(e.countdown.textContent,/No recheck scheduled/);
+ b.resolve();await b.tick();assert.equal(e.exercise.value,2);assert.match(e.countdown.textContent,/Source resolved/);
+ e.token.value='';await e.token.fire('input');assert.match(e.countdown.textContent,/No recheck countdown/);
+});
+test('early resolution retains partial exercise progress',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();await b.tick();
+ assert.match(e['exercise-state'].textContent,/0\/2.*source resolved before both rechecks/);assert.match(e.countdown.textContent,/no further recheck/);
 });

@@ -25,6 +25,12 @@
 </p>
 <p>Evidence JSON can be imported into the playground. Reports contain ordered actual/expected outcomes and the policy version. Replay does not change the episode or schedule work.</p>
 <p id="status" role="status" aria-live="polite">Loading controls…</p>
+<h2>Ten-minute exercise</h2>
+<label for="exercise">Recorded recheck progress</label>
+<progress id="exercise" max="2" value="0" aria-describedby="exercise-state"></progress>
+<p id="exercise-state">Select an episode to watch its two rechecks.</p>
+<p id="countdown" role="timer" aria-live="off">No recheck countdown.</p>
+<p>Initial observation → first recheck → second recheck / human review. Each recheck waits five real minutes. Progress advances only when decisions are recorded.</p>
 <h2>Live timeline</h2>
 <ol id="timeline" aria-label="Live episode timeline"></ol>
 <h2>Replay results</h2>
