@@ -3,10 +3,11 @@ import {parseSuite,replay,markdown} from '/replay.js';
 const token=document.querySelector('#token'),episode=document.querySelector('#episode');
 const status=document.querySelector('#status'),steps=document.querySelector('#steps');
 const auto=document.querySelector('#auto'),live=document.querySelector('#live'),timeline=document.querySelector('#timeline');
+const progress=document.querySelector('#exercise'),exerciseState=document.querySelector('#exercise-state'),countdown=document.querySelector('#countdown');
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
-let busy=false,active=null,cursor=null,tail=0,follow=true,suite=null,report=null;
+let busy=false,active=null,cursor=null,tail=0,follow=true,suite=null,report=null,observed=null,receivedAt=0;
 
 function controls() {
   const locked=busy&&!active?.quiet;
@@ -15,7 +16,7 @@ function controls() {
   scenarios.forEach(button=>{button.disabled=locked;});
   downloads.forEach(button=>{button.disabled=locked||report===null;});
 }
-function clearReplay() {suite=null;report=null;steps.replaceChildren();timeline.replaceChildren();}
+function clearReplay() {suite=null;report=null;observed=null;steps.replaceChildren();timeline.replaceChildren();paintExercise();}
 async function request(path,method='GET') {
   const job=active;
   const current=()=>{if(active!==job||job.abort.signal.aborted)throw new Error('Request cancelled.');};
@@ -87,6 +88,22 @@ function showReplay(imported,sourceStatus) {
 }
 function addEvent(text) {const li=document.createElement('li');li.textContent=text;timeline.append(li);}
 function time(value) {return new Date(value).toISOString();}
+function paintExercise() {
+  if(!observed) {progress.value=0;exerciseState.textContent='Select an episode to watch its two rechecks.';countdown.textContent='No recheck countdown.';return;}
+  const last=observed.decisions.at(-1),completed=Math.min(2,last?.evidence.rechecks??0);
+  progress.value=completed;
+  const reachedReview=completed===2&&last?.decision.kind==='review';
+  exerciseState.textContent=completed+'/2 rechecks recorded'+(reachedReview?' · human review recommended':last?' · latest recommendation: '+last.decision.kind:' · waiting for initial evidence')+(observed.source_status==='resolved'?' · source resolved'+(completed<2?' before both rechecks':''):'');
+  if(observed.source_status==='resolved')countdown.textContent='Source resolved; no further recheck.';
+  else if(observed.next_due===null)countdown.textContent='No recheck scheduled; awaiting a new source event.';
+  else if(!auto.checked)countdown.textContent='Auto-refresh paused; countdown unavailable until updates resume.';
+  else if(document.hidden||Date.now()-receivedAt>15000)countdown.textContent='Updates stale or hidden; waiting for fresh evidence.';
+  else {
+    const seconds=Math.max(0,Math.ceil((observed.next_due-Date.now())/1000));
+    countdown.textContent=seconds?'Next recheck in '+Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'):'Recheck due; waiting for recorded evidence.';
+  }
+}
+setInterval(paintExercise,1000);
 async function loadDetail() {
   if(!episode.value)return;
   const id=episode.value,data=await (await request('/episodes/'+id)).json();
@@ -101,13 +118,14 @@ async function loadDetail() {
   if(episode.selectedOptions[0].textContent!==label)episode.selectedOptions[0].textContent=label;
   if(data.decisions.length)showReplay(parseSuite(JSON.stringify({schemaVersion:1,cases:[{id,steps:data.decisions.map(row=>({evidence:row.evidence,expectedKind:row.decision.kind}))}]})),data.source_status);
   else {suite=null;report=null;steps.replaceChildren();status.textContent='No decisions recorded yet. Waiting for evidence collection.';}
+  observed=data;receivedAt=Date.now();paintExercise();
 }
 async function update() {
   await loadEpisodes();await loadDetail();
   live.textContent='Last updated '+time(Date.now())+(auto.checked?' · auto-refresh every 5 seconds':' · auto-refresh paused');
 }
 run.addEventListener('click',()=>perform('Replaying recorded evidence…',loadDetail));
-auto.addEventListener('change',()=>{if(!auto.checked) {cancelBackground();controls();}live.textContent=auto.checked?'Auto-refresh enabled.':'Auto-refresh paused.';});
+auto.addEventListener('change',()=>{if(!auto.checked) {cancelBackground();controls();}live.textContent=auto.checked?'Auto-refresh enabled.':'Auto-refresh paused.';paintExercise();});
 setInterval(()=>{
   if(auto.checked&&!document.hidden&&token.value&&!busy)return perform('Refreshing live evidence…',update,true);
 },5000);
