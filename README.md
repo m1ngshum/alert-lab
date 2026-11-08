@@ -105,3 +105,7 @@ Use the pinned current Node/npm versions in `tools.lock.json` and `package.json`
 The container builds a checksum-pinned Node source release with the upstream bundled-zlib backport in `patches/node-zlib.patch`. The custom version, source/patch pins, binary digest and direct regression results are included in each image and release. Both architectures build and test natively; the first source build is substantially slower than pulling the upstream binary, and later builds reuse compilation layers. Local development Node installations are unchanged. See [SECURITY.md](SECURITY.md) for the fix and maintenance scope.
 
 No runtime credentials or evidence enter the public playground. Reporting reduced paging, incident accuracy or production readiness requires historical evaluation and shadow-operation evidence that this project does not yet have.
+
+## Contact
+
+For general enquiries, contact [hello@m1ngshum.com](mailto:hello@m1ngshum.com).
