@@ -4,13 +4,15 @@ const token=document.querySelector('#token'),episode=document.querySelector('#ep
 const status=document.querySelector('#status'),steps=document.querySelector('#steps');
 const auto=document.querySelector('#auto'),live=document.querySelector('#live'),timeline=document.querySelector('#timeline');
 const progress=document.querySelector('#exercise'),exerciseState=document.querySelector('#exercise-state'),countdown=document.querySelector('#countdown');
+const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelector('#cancel-run'),runStatus=document.querySelector('#run-status');
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
-let busy=false,active=null,cursor=null,tail=0,follow=true,suite=null,report=null,observed=null,receivedAt=0;
+let busy=false,active=null,cursor=null,tail=0,follow=true,suite=null,report=null,observed=null,receivedAt=0,exerciseRun=null;
 
 function controls() {
-  const locked=busy&&!active?.quiet;
+  const locked=Boolean(exerciseRun)||(busy&&!active?.quiet);
+  startRun.disabled=locked||!token.value;cancelRun.disabled=!exerciseRun||(busy&&!active?.quiet);auto.disabled=Boolean(exerciseRun);
   token.disabled=locked;episode.disabled=locked||!episode.value;
   refresh.disabled=locked;more.disabled=locked||cursor===null;run.disabled=locked||!episode.value;
   scenarios.forEach(button=>{button.disabled=locked;});
@@ -40,6 +42,7 @@ async function perform(message,action,quiet=false) {
   try {await action();}
   catch(error) {
     if(active!==job||job.abort.signal.aborted)return;
+    if(exerciseRun) {exerciseRun=null;runStatus.textContent='Exercise stopped. Recovery is not confirmed; use Recovery before retrying.';}
     clearReplay();auto.checked=false;live.textContent='Auto-refresh paused after an error. Refresh to retry, then enable it again.';status.textContent='Error: '+error.message;
   }
   finally {if(active===job) {busy=false;active=null;controls();}}
@@ -64,6 +67,7 @@ async function loadEpisodes() {
   }
   if(!episode.options.length) {const option=document.createElement('option');option.value='';option.textContent='No episodes yet';episode.append(option);}
   if(!episode.value)status.textContent='No episodes yet. Start a spike and wait for Alertmanager.';
+  return data.items;
 }
 refresh.addEventListener('click',()=>perform('Loading live evidence…',update));
 more.addEventListener('click',()=>perform('Loading more episodes…',update));
@@ -121,20 +125,94 @@ async function loadDetail() {
   observed=data;receivedAt=Date.now();paintExercise();
 }
 async function update() {
-  await loadEpisodes();await loadDetail();
+  const added=await loadEpisodes();
+  if(exerciseRun&&!exerciseRun.id) {
+    const candidates=added.filter(row=>row.seq>exerciseRun.baseline);
+    if(candidates.length>1)throw new Error('Multiple new episodes; exercise identity is ambiguous.');
+    if(candidates.length) {exerciseRun.id=candidates[0].id;follow=false;episode.value=exerciseRun.id;}
+  }
+  if(exerciseRun&&!exerciseRun.id) {clearReplay();status.textContent='Waiting for the fresh exercise episode…';}
+  else await loadDetail();
+  await advanceRun();
   live.textContent='Last updated '+time(Date.now())+(auto.checked?' · auto-refresh every 5 seconds':' · auto-refresh paused');
+}
+startRun.addEventListener('click',()=>perform('Checking for a fresh exercise…',async()=>{
+  exerciseRun={id:null,baseline:0,deadline:Date.now()+20*60000,phase:'starting'};controls();
+  runStatus.textContent='Checking that prior episodes are resolved…';
+  tail=0;cursor=null;episode.replaceChildren();follow=true;
+  do {
+    const rows=await loadEpisodes();
+    if(rows.some(row=>row.source_status!=='resolved'))throw new Error('Recover all firing episodes before starting a fresh exercise.');
+  } while(cursor!==null);
+  exerciseRun.baseline=tail;
+  await request('/scenario/spike','POST');
+  exerciseRun.phase='watching';auto.checked=true;
+  runStatus.textContent='Spike started. Waiting for its new episode and two real five-minute rechecks.';
+}));
+cancelRun.addEventListener('click',()=>{
+  if(!exerciseRun||(busy&&!active?.quiet))return;
+  active?.abort.abort();active=null;busy=false;exerciseRun=null;
+  runStatus.textContent='Cancellation requested. Recovery is not confirmed yet.';
+  return perform('Cancelling and recovering…',async()=>{
+    await request('/scenario/recovery','POST');
+    runStatus.textContent='Cancelled. Recovery requested; source resolution will appear in the timeline. No automatic downloads.';
+  });
+});
+async function advanceRun() {
+  const running=exerciseRun;if(!running)return;
+  if(Date.now()>running.deadline)throw new Error('Exercise exceeded twenty minutes.');
+  if(!running.id)return;
+  if(observed?.id!==running.id)throw new Error('Exercise episode changed.');
+  if(running.phase==='recovering') {
+    if(observed.source_status==='resolved') {
+      exerciseRun=null;
+      downloadArchive();
+      runStatus.textContent='Exercise complete: both rechecks and human review recorded; source resolved. ZIP download requested with JSON and Markdown reports. Use the report buttons if your browser blocked it.';
+    }
+    return;
+  }
+  if(observed.source_status==='resolved')throw new Error('Source resolved before the exercise completed.');
+  const recorded=observed.decisions;
+  if(recorded.length===3&&recorded.every((row,i)=>row.evidence.rechecks===i&&row.decision.kind===(i===2?'review':'observe'))&&report?.totals.failed===0) {
+    await request('/scenario/recovery','POST');
+    running.phase='recovering';
+    runStatus.textContent='Human review recorded. Recovery requested; waiting for source resolution before downloads.';
+  } else if(recorded.at(-1)?.decision.kind!=='observe'&&recorded.length)throw new Error('Unexpected policy conclusion; automatic exercise stopped.');
 }
 run.addEventListener('click',()=>perform('Replaying recorded evidence…',loadDetail));
 auto.addEventListener('change',()=>{if(!auto.checked) {cancelBackground();controls();}live.textContent=auto.checked?'Auto-refresh enabled.':'Auto-refresh paused.';paintExercise();});
 setInterval(()=>{
   if(auto.checked&&!document.hidden&&token.value&&!busy)return perform('Refreshing live evidence…',update,true);
 },5000);
+function downloadArchive() {
+  const encoder=new TextEncoder(),files=[['replay.json',JSON.stringify(report,null,2)+'\n'],['replay.md',markdown(report)]];
+  const local=[],directory=[];let offset=0;
+  for(const [name,text] of files) {
+    const filename=encoder.encode(name),body=encoder.encode(text);
+    if(offset+30+filename.length+body.length+46+filename.length+22>0xffffffff)throw new Error('Reports exceed ZIP format limits.');
+    let crc=0xffffffff;
+    for(const byte of body) {crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+    crc=(crc^0xffffffff)>>>0;
+    const header=new Uint8Array(30),h=new DataView(header.buffer);
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);h.setUint16(12,0x21,true);
+    h.setUint32(14,crc,true);h.setUint32(18,body.length,true);h.setUint32(22,body.length,true);h.setUint16(26,filename.length,true);
+    const central=new Uint8Array(46),c=new DataView(central.buffer);
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x800,true);c.setUint16(14,0x21,true);
+    c.setUint32(16,crc,true);c.setUint32(20,body.length,true);c.setUint32(24,body.length,true);c.setUint16(28,filename.length,true);c.setUint32(42,offset,true);
+    local.push(header,filename,body);directory.push(central,filename);offset+=header.length+filename.length+body.length;
+  }
+  const end=new Uint8Array(22),e=new DataView(end.buffer);
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,2,true);e.setUint16(10,2,true);e.setUint32(12,directory.reduce((size,part)=>size+part.length,0),true);e.setUint32(16,offset,true);
+  save(new Blob([...local,...directory,end],{type:'application/zip'}),'alert-lab-'+episode.value+'-reports.zip');
+}
+function save(blob,filename) {
+  const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function download(kind) {
   if((busy&&!active?.quiet)||report===null)return;
   const isMarkdown=kind==='markdown',body=isMarkdown?markdown(report):JSON.stringify(kind==='evidence'?suite:report,null,2)+'\n';
-  const url=URL.createObjectURL(new Blob([body],{type:isMarkdown?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}));
-  const link=document.createElement('a');link.href=url;link.download='alert-lab-'+episode.value+'-'+(kind==='evidence'?'evidence':'replay')+(isMarkdown?'.md':'.json');
-  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  save(new Blob([body],{type:isMarkdown?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}),'alert-lab-'+episode.value+'-'+(kind==='evidence'?'evidence':'replay')+(isMarkdown?'.md':'.json'));
 }
 downloads.forEach(button=>button.addEventListener('click',()=>download(button.id)));
 status.textContent='Enter the sandbox token to start watching episodes.';controls();

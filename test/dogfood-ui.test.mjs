@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {crc32} from 'node:zlib';
 import {parseSuite,replay,markdown} from '../web/replay.js';
 
 // Exercise the shipped browser script with a small DOM and controlled network/timer.
@@ -15,11 +16,14 @@ class Element {
  replaceChildren(...items){this.children=items;this.selection='';}
  addEventListener(name,handler){this.listeners[name]=handler;}
  async fire(name){return this.listeners[name]?.();}
+ remove(){}
 }
-function browser() {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown'].map(id=>[id,new Element()]));
+function browser(extraMarkdown='') {
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status'].map(id=>[id,new Element()]));
+ const saved=[],blobs=[];
+ class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
  const scenarios=['spike','recovery'].map(name=>Object.assign(new Element(),{dataset:{scenario:name},textContent:name}));
- const document={hidden:false,querySelector:selector=>elements[selector.slice(1)],querySelectorAll:()=>scenarios,createElement:()=>new Element(),createDocumentFragment:()=>new Element()};
+ const document={hidden:false,querySelector:selector=>elements[selector.slice(1)],querySelectorAll:()=>scenarios,body:new Element(),createElement:tag=>{const el=new Element();if(tag==='a')el.click=()=>saved.push(el.download);return el;},createDocumentFragment:()=>new Element()};
  const fixture=JSON.parse(readFileSync(new URL('../web/examples.json',import.meta.url),'utf8')).cases.find(item=>item.id==='persistent-spike').steps;
  const id='a'.repeat(64),other='b'.repeat(64),start='2026-11-08T00:00:00.000Z';
  let count=1,resolved=false,error=0,hold=null,heldPath='',tick,paint,now=Date.parse(start);
@@ -27,13 +31,13 @@ function browser() {
  const fetch=async(path,options)=>{
   calls.push({path,options});if(hold&&(!heldPath||path===heldPath))await hold;
   let data;
-  if(path.startsWith('/episodes?'))data={items:rows.filter(row=>row.seq>Number(new URLSearchParams(path.split('?')[1]).get('cursor'))),nextCursor:null};
+  if(path.startsWith('/episodes?'))data={items:rows.filter(row=>row.seq>Number(new URLSearchParams(path.split('?')[1]).get('cursor'))).map(row=>({...row,source_status:resolved?'resolved':'firing'})),nextCursor:null};
   else if(path.startsWith('/scenario/'))data={};
   else data={id:path.split('/').at(-1),starts_at:start,source_status:resolved?'resolved':'firing',next_due:count<3?Date.parse(start)+count*300000:null,completed_at:resolved?Date.parse(start)+610000:null,decisions:fixture.slice(0,count).map((step,i)=>({evidence:step.evidence,decision:{kind:step.expectedKind},created_at:Date.parse(start)+i*300000}))};
   return {ok:!error,status:error||200,json:async()=>data};
  };
- runInNewContext(readFileSync(new URL('../examples/dogfood/ui.js',import.meta.url),'utf8').replace(/^import .*\n/,''),{document,fetch,parseSuite,replay,markdown,AbortSignal,AbortController,setInterval:(fn,ms)=>{if(ms===5000)tick=fn;else paint=fn;},Date:class extends Date {static now(){return now;}},URL,Blob,setTimeout});
- return {elements,document,scenarios,calls,tick:()=>tick(),paint:()=>paint(),advance:ms=>{now+=ms;},setCount:n=>{count=n;},resolve:()=>{resolved=true;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
+ runInNewContext(readFileSync(new URL('../examples/dogfood/ui.js',import.meta.url),'utf8').replace(/^import .*\n/,''),{document,fetch,parseSuite,replay,markdown:report=>markdown(report)+extraMarkdown,AbortSignal,AbortController,setInterval:(fn,ms)=>{if(ms===5000)tick=fn;else paint=fn;},Date:class extends Date {static now(){return now;}},URL:DownloadsURL,Blob,TextEncoder,setTimeout});
+ return {elements,document,scenarios,calls,saved,blobs,tick:()=>tick(),paint:()=>paint(),advance:ms=>{now+=ms;},setCount:n=>{count=n;},resolve:()=>{resolved=true;},firing:()=>{resolved=false;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
 }
 test('live UI polls persisted decisions, follows new episodes, preserves selection and separates resolution',async()=>{
  const b=browser(),e=b.elements;
@@ -95,4 +99,55 @@ test('countdown uses the due time and progress requires recorded decisions, incl
 test('early resolution retains partial exercise progress',async()=>{
  const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();await b.tick();
  assert.match(e['exercise-state'].textContent,/0\/2.*source resolved before both rechecks/);assert.match(e.countdown.textContent,/no further recheck/);
+});
+
+test('one-click run pins a fresh episode, waits for recorded review, recovers and downloads exactly once',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();await e['auto-run'].fire('click');
+ assert.equal(b.calls.filter(call=>call.path==='/scenario/spike').length,1);assert.equal(e.token.disabled,true);assert.equal(e.auto.disabled,true);
+ b.firing();b.add();await b.tick();assert.equal(e.episode.value,b.other);assert.equal(b.saved.length,0);
+ b.advance(300000);b.setCount(2);await b.tick();assert.equal(b.calls.filter(call=>call.path==='/scenario/recovery').length,0);
+ b.advance(300000);b.setCount(3);await b.tick();assert.equal(b.calls.filter(call=>call.path==='/scenario/recovery').length,1);assert.equal(b.saved.length,0);
+ b.resolve();await b.tick();assert.deepEqual(b.saved,['alert-lab-'+b.other+'-reports.zip']);
+ const zip=Buffer.from(await b.blobs[0].arrayBuffer()),entries={};let offset=0;
+ while(zip.readUInt32LE(offset)===0x04034b50){const size=zip.readUInt32LE(offset+18),length=zip.readUInt16LE(offset+26),name=zip.subarray(offset+30,offset+30+length).toString(),body=zip.subarray(offset+30+length,offset+30+length+size);assert.equal(zip.readUInt32LE(offset+14),crc32(body));entries[name]=body.toString();offset+=30+length+size;}
+ assert.deepEqual(Object.keys(entries),['replay.json','replay.md']);const exported=JSON.parse(entries['replay.json']);assert.equal(exported.cases[0].id,b.other);assert.equal(exported.totals.passed,3);assert.equal(entries['replay.md'],markdown(exported));assert.equal(zip.readUInt32LE(offset),0x02014b50);assert.equal(zip.readUInt32LE(zip.length-22),0x06054b50);assert.equal(zip.readUInt32LE(zip.length-6),offset);
+ await b.tick();assert.equal(b.saved.length,1);assert.equal(e.token.disabled,false);assert.match(e['run-status'].textContent,/Exercise complete/);
+});
+test('one-click refuses an existing spike; cancel recovers without downloads',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';await e['auto-run'].fire('click');
+ assert.equal(b.calls.some(call=>call.path==='/scenario/spike'),false);assert.match(e.status.textContent,/Recover all firing/);
+ b.resolve();await e['auto-run'].fire('click');b.firing();b.add();await b.tick();await e['cancel-run'].fire('click');
+ assert.equal(b.calls.filter(call=>call.path==='/scenario/recovery').length,1);assert.equal(b.saved.length,0);assert.match(e['run-status'].textContent,/Cancelled/);
+ b.setCount(3);await b.tick();assert.equal(b.saved.length,0);
+});
+
+test('exercise timeout or network failure stops without exporting or claiming recovery',async()=>{
+ for(const failure of ['timeout','network']) {
+  const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();await e['auto-run'].fire('click');
+  b.firing();b.add();await b.tick();
+  if(failure==='timeout')b.advance(20*60000+1);else b.fail(503);
+  await b.tick();assert.equal(b.saved.length,0);assert.equal(e.token.disabled,false);assert.equal(e.auto.checked,false);
+  assert.match(e['run-status'].textContent,/Recovery is not confirmed/);assert.equal(b.calls.some(call=>call.path==='/scenario/recovery'),false);
+ }
+});
+test('cancel does not abort a foreground spike POST; a later cancelled poll cannot recover or export twice',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();let release;
+ b.hold(new Promise(resolve=>{release=resolve;}),'/scenario/spike');const starting=e['auto-run'].fire('click');
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(e['cancel-run'].disabled,true);await e['cancel-run'].fire('click');assert.equal(b.calls.some(call=>call.path==='/scenario/recovery'),false);
+ release();b.hold(null);await starting;b.firing();b.add();await b.tick();b.setCount(3);
+ b.hold(new Promise(resolve=>{release=resolve;}),'/episodes/'+b.other);const poll=b.tick();await new Promise(resolve=>setImmediate(resolve));
+ const cancel=e['cancel-run'].fire('click');release();b.hold(null);await Promise.all([poll,cancel]);
+ assert.equal(b.calls.filter(call=>call.path==='/scenario/recovery').length,1);assert.equal(b.saved.length,0);assert.match(e['run-status'].textContent,/Cancelled/);
+});
+
+test('waiting for a fresh episode never displays an older completed exercise',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();b.setCount(3);await b.tick();
+ await e['auto-run'].fire('click');await b.tick();assert.equal(e.timeline.children.length,0);assert.equal(e.json.disabled,true);assert.match(e.status.textContent,/Waiting for the fresh/);
+});
+
+test('automatic ZIP preserves Unicode Markdown bytes and CRC',async()=>{
+ const b=browser('\n雪 🧪'),e=b.elements;e.token.value='sandbox-only';b.resolve();await e['auto-run'].fire('click');b.firing();b.add();b.setCount(3);await b.tick();b.resolve();await b.tick();
+ const zip=Buffer.from(await b.blobs[0].arrayBuffer());let offset=0;const bodies=[];
+ while(zip.readUInt32LE(offset)===0x04034b50){const size=zip.readUInt32LE(offset+18),length=zip.readUInt16LE(offset+26),body=zip.subarray(offset+30+length,offset+30+length+size);assert.equal(zip.readUInt32LE(offset+14),crc32(body));bodies.push(body);offset+=30+length+size;}
+ assert.match(bodies[1].toString(),/雪 🧪$/);assert.equal(zip.readUInt16LE(zip.length-12),2);
 });
