@@ -5,3 +5,6 @@ input, select, button { font: inherit; min-width: 0; max-width: 100%; box-sizing
 #status, #steps { overflow-wrap: anywhere; }
 #steps li { margin-bottom: 1rem; }
 select { width: 100%; }
+
+.watch { display: flex; align-items: center; gap: .5rem; }
+#live, #timeline { overflow-wrap: anywhere; }
