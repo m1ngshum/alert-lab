@@ -13,13 +13,14 @@ class Element {
  set value(value){this.selection=value;}
  get selectedOptions(){return this.children.filter(option=>option.value===this.value);}
  append(...items){this.children.push(...items);}
+ prepend(...items){this.children.unshift(...items);}
  replaceChildren(...items){this.children=items;this.selection='';}
  addEventListener(name,handler){this.listeners[name]=handler;}
  async fire(name){return this.listeners[name]?.();}
  remove(){}
 }
 function browser(extraMarkdown='') {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status'].map(id=>[id,new Element()]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state'].map(id=>[id,new Element()]));
  const saved=[],blobs=[];
  class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
  const scenarios=['spike','recovery'].map(name=>Object.assign(new Element(),{dataset:{scenario:name},textContent:name}));
@@ -150,4 +151,29 @@ test('automatic ZIP preserves Unicode Markdown bytes and CRC',async()=>{
  const zip=Buffer.from(await b.blobs[0].arrayBuffer());let offset=0;const bodies=[];
  while(zip.readUInt32LE(offset)===0x04034b50){const size=zip.readUInt32LE(offset+18),length=zip.readUInt16LE(offset+26),body=zip.subarray(offset+30+length,offset+30+length+size);assert.equal(zip.readUInt32LE(offset+14),crc32(body));bodies.push(body);offset+=30+length+size;}
  assert.match(bodies[1].toString(),/雪 🧪$/);assert.equal(zip.readUInt16LE(zip.length-12),2);
+});
+
+test('history reviews and exports old persisted runs using only reads, without changing source events',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();b.setCount(3);await b.tick();b.add();await b.tick();
+ assert.equal(e.history.children.length,2);assert.match(e.history.children[0].children[0].textContent,/bbbbbbbbbbbb/);
+ const past=e.history.children[1],review=past.children[1].children[0],zip=past.children[1].children[1];
+ await review.fire('click');assert.equal(e.episode.value,b.id);assert.match(e.status.textContent,/3 passed/);assert.match(past.children[0].textContent,/latest review/);
+ await zip.fire('click');assert.deepEqual(b.saved,['alert-lab-'+b.id+'-reports.zip']);assert.ok(b.calls.every(call=>call.options.method==='GET'));
+ await b.tick();assert.equal(e.history.children.length,2);assert.equal(e.episode.value,b.id);assert.equal(e.history.children[1],past);assert.equal(past.children[1].children[0],review);assert.equal(past.children[1].children[1],zip);
+ e.token.value='replacement';await e.token.fire('input');assert.equal(e.history.children.length,0);assert.match(e['history-state'].textContent,/No history/);
+});
+test('history export waits for its own detail and clears stale data on failed or empty episodes',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.setCount(3);await b.tick();b.add();await b.tick();
+ let release;b.hold(new Promise(resolve=>{release=resolve;}),'/episodes/'+b.id);
+ const zip=e.history.children[1].children[1].children[1],pending=zip.fire('click');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(e.json.disabled,true);assert.equal(b.saved.length,0);assert.equal(e.timeline.children.length,0);
+ release();b.hold(null);await pending;assert.equal(b.saved.length,1);assert.ok(b.saved[0].includes(b.id));
+ b.setCount(0);await zip.fire('click');assert.equal(b.saved.length,1);assert.equal(e.json.disabled,true);assert.match(e.status.textContent,/no recorded decisions/);
+ b.fail(401);await zip.fire('click');assert.equal(b.saved.length,1);assert.match(e.status.textContent,/Unauthorized/);
+});
+test('history controls are locked during a one-click exercise and stale requests cannot restore another token history',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.resolve();await e['auto-run'].fire('click');
+ const zip=e.history.children[0].children[1].children[1];assert.equal(zip.disabled,true);await zip.fire('click');assert.equal(b.saved.length,0);
+ await e['cancel-run'].fire('click');b.firing();b.add();let release;b.hold(new Promise(resolve=>{release=resolve;}));const poll=b.tick();
+ e.token.value='changed';await e.token.fire('input');release();b.hold(null);await poll;assert.equal(e.history.children.length,0);assert.equal(e.json.disabled,true);
 });
