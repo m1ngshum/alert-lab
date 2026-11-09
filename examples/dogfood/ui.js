@@ -7,6 +7,8 @@ const progress=document.querySelector('#exercise'),exerciseState=document.queryS
 const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelector('#cancel-run'),runStatus=document.querySelector('#run-status');
 const historyList=document.querySelector('#history'),historyState=document.querySelector('#history-state'),historyRows=new Map();
 const compare=document.querySelector('#compare'),comparison=document.querySelector('#comparison'),comparisonState=document.querySelector('#comparison-state');
+const changesOnly=document.querySelector('#changes-only');
+let comparisonTables=[];
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
@@ -21,6 +23,7 @@ function controls() {
   downloads.forEach(button=>{button.disabled=locked||report===null;});
   for(const row of historyRows.values()) {row.review.disabled=locked;row.zip.disabled=locked;}
   compare.disabled=locked||!token.value;
+  changesOnly.disabled=locked||!comparisonTables.length;
 }
 function clearReplay() {suite=null;report=null;observed=null;steps.replaceChildren();timeline.replaceChildren();paintExercise();}
 async function request(path,method='GET') {
@@ -51,19 +54,35 @@ async function perform(message,action,quiet=false) {
   }
   finally {if(active===job) {busy=false;active=null;controls();}}
 }
-function clearComparison() {comparison.replaceChildren();comparisonState.textContent='Compare evidence and recorded decisions without starting a spike.';}
+function clearComparison() {comparisonTables=[];changesOnly.disabled=true;comparison.replaceChildren();comparisonState.textContent='Compare evidence and recorded decisions without starting a spike.';}
 function clearHistory() {clearComparison();historyRows.clear();historyList.replaceChildren();historyState.textContent='No history loaded.';}
+function filterComparison() {
+  for(const {title,caption,rows} of comparisonTables) {
+    const count=rows.filter(row=>row.className==='changed').length;
+    for(const row of rows)row.hidden=changesOnly.checked&&row.className!=='changed';
+    title.textContent=caption+' · '+count+' changed fields'+(changesOnly.checked&&!count?' · no differences':'');
+  }
+}
+changesOnly.addEventListener('change',filterComparison);
+function numericDelta(previous,latest) {
+  if(typeof previous!=='number'||typeof latest!=='number'||!Number.isFinite(previous)||!Number.isFinite(latest))return '—';
+  const difference=latest-previous;
+  if(!Number.isFinite(difference))return 'Out of range';
+  const rounded=Number(difference.toPrecision(6));
+  return (rounded!==difference?'≈ ':'')+(difference>0?'+':'')+String(rounded);
+}
 function comparisonTable(caption,previous,latest,ids) {
   const table=document.createElement('table'),title=document.createElement('caption'),head=document.createElement('tr');title.textContent=caption;table.append(title);
-  for(const label of ['Field','Previous · '+ids[0].slice(0,12),'Latest · '+ids[1].slice(0,12),'Change']) {const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
+  for(const label of ['Field','Previous · '+ids[0].slice(0,12),'Latest · '+ids[1].slice(0,12),'Change','Delta (latest − previous)']) {const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
   table.append(head);
+  const rows=[];
   for(const key of new Set([...Object.keys(previous),...Object.keys(latest)])) {
     const row=document.createElement('tr'),field=document.createElement('th');field.scope='row';field.textContent=key;row.append(field);
     const values=[previous[key],latest[key]],changed=JSON.stringify(values[0])!==JSON.stringify(values[1]);
     for(const value of values) {const cell=document.createElement('td');cell.textContent=value===undefined?'Not recorded':JSON.stringify(value);row.append(cell);}
-    const delta=document.createElement('td');delta.textContent=changed?'Changed':'Same';row.append(delta);if(changed)row.className='changed';table.append(row);
+    const change=document.createElement('td'),delta=document.createElement('td');change.textContent=changed?'Changed':'Same';delta.textContent=numericDelta(...values);row.append(change,delta);if(changed)row.className='changed';table.append(row);rows.push(row);
   }
-  comparison.append(table);
+  comparison.append(table);comparisonTables.push({title,caption,rows});filterComparison();
 }
 compare.addEventListener('click',()=>{
   if(exerciseRun||(busy&&!active?.quiet))return;

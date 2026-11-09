@@ -21,4 +21,4 @@ summary { cursor: pointer; font-weight: 600; padding-block: .75rem; }
 #comparison th, #comparison td { border: 1px solid #888; padding: .5rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; max-width: 20rem; }
 #comparison caption { text-align: left; font-weight: 600; }
 #comparison .changed { font-weight: 600; }
-#comparison th:last-child, #comparison td:last-child { white-space: nowrap; }
+#comparison th:nth-child(n+4), #comparison td:nth-child(n+4) { white-space: nowrap; }
