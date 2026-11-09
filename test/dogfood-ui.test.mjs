@@ -20,7 +20,8 @@ class Element {
  remove(){}
 }
 function browser(extraMarkdown='') {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state'].map(id=>[id,new Element()]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state','changes-only'].map(id=>[id,new Element()]));
+ elements['changes-only'].checked=false;
  const saved=[],blobs=[];
  class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
  const scenarios=['spike','recovery'].map(name=>Object.assign(new Element(),{dataset:{scenario:name},textContent:name}));
@@ -212,4 +213,27 @@ test('comparison rejects too few episodes and bad cursors, locks during exercise
  b.respond(data=>data);b.add();b.resolve();await e['auto-run'].fire('click');assert.equal(e.compare.disabled,true);const before=b.calls.length;await e.compare.fire('click');assert.equal(b.calls.length,before);await e['cancel-run'].fire('click');
  let release;b.hold(new Promise(resolve=>{release=resolve;}),'/episodes/'+b.other);const comparing=e.compare.fire('click');await new Promise(resolve=>setImmediate(resolve));assert.equal(e.compare.disabled,true);release();b.hold(null);await comparing;
  assert.equal(e.comparison.children.length,2);b.fail(500);await b.tick();assert.equal(e.comparison.children.length,0);
+});
+
+
+test('changes-only hides unchanged rows without requests or replacing controls and persists across comparison refresh',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.add();await e.compare.fire('click');
+ const table=e.comparison.children[1],rows=table.children.slice(2),before=b.calls.length;
+ assert.ok(rows.every(r=>r.hidden===false));assert.equal(e['changes-only'].disabled,false);
+ e['changes-only'].checked=true;await e['changes-only'].fire('change');
+ assert.ok(rows.every(r=>r.hidden===true));assert.match(table.children[0].textContent,/0 changed fields · no differences/);assert.equal(b.calls.length,before);assert.equal(e.comparison.children[1],table);
+ e['changes-only'].checked=false;await e['changes-only'].fire('change');assert.ok(rows.every(r=>r.hidden===false));
+ e['changes-only'].checked=true;await e.compare.fire('click');assert.ok(e.comparison.children[1].children.slice(2).every(r=>r.hidden===true));
+ e.token.value='replacement';await e.token.fire('input');assert.equal(e['changes-only'].disabled,true);assert.equal(e.comparison.children.length,0);
+ b.resolve();await e['auto-run'].fire('click');assert.equal(e['changes-only'].disabled,true);
+});
+test('numeric deltas use finite numbers only, preserve sign and small differences, and filter missing or changed decisions',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.add();
+ const pairs={positive:[10,12],negative:[10,8],equal:[5,5],rounded:[0,1/3],tiny:[0,1e-12],fraction:[0.3,0.1],unknown:[1,null],boolean:[false,true],text:['1','2'],missing:[1,undefined],overflow:[-Number.MAX_VALUE,Number.MAX_VALUE],nonfinite:[NaN,Infinity]};
+ b.respond((data,path)=>{if(!path.startsWith('/episodes?')){const latest=path.endsWith(b.other);data.decisions[0].evidence=Object.fromEntries(Object.entries(pairs).map(([k,v])=>[k,v[latest?1:0]]));data.decisions[0].decision.kind=latest?'review':'observe';}return data;});
+ await e.compare.fire('click');const table=e.comparison.children[1],row=key=>table.children.find(r=>r.children[0]?.textContent==='Evidence · '+key);
+ for(const [key,expected] of Object.entries({positive:'+2',negative:'-2',equal:'0',rounded:'≈ +0.333333',tiny:'+1e-12',fraction:'≈ -0.2',unknown:'—',boolean:'—',text:'—',missing:'—',overflow:'Out of range',nonfinite:'—'}))assert.equal(row(key).children[4].textContent,expected,key);
+ e['changes-only'].checked=true;await e['changes-only'].fire('change');assert.equal(row('equal').hidden,true);assert.equal(row('tiny').hidden,false);assert.equal(row('unknown').hidden,false);assert.equal(row('missing').hidden,false);
+ const decision=table.children.find(r=>r.children[0]?.textContent==='Decision · kind');assert.equal(decision.hidden,false);assert.equal(decision.children[4].textContent,'—');
+ b.fail(401);await e.compare.fire('click');assert.equal(e['changes-only'].disabled,true);assert.equal(e.comparison.children.length,0);
 });
