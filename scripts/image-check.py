@@ -9,9 +9,10 @@ with tempfile.TemporaryDirectory(prefix='alert-lab-tls-') as directory:
                     '-keyout',str(key),'-out',str(cert),'-subj','/CN=localhost',
                     '-addext','subjectAltName=DNS:localhost'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     pin=json.loads((Path(__file__).resolve().parents[1]/'runtime/node-source.json').read_text())
-    source='const expected='+json.dumps(pin)+';\nconst fixture='+json.dumps({'key':key.read_text(),'cert':cert.read_text()})+';\n'+r'''
+    debian=json.loads((Path(__file__).resolve().parents[1]/'runtime/debian.json').read_text())
+    source='const packages='+json.dumps(debian)+';\nconst expected='+json.dumps(pin)+';\nconst fixture='+json.dumps({'key':key.read_text(),'cert':cert.read_text()})+';\n'+r'''
 import assert from 'node:assert/strict';
-import {readFileSync,readdirSync,existsSync} from 'node:fs';
+import {readFileSync,readdirSync,existsSync,realpathSync} from 'node:fs';
 import {createServer,connect,rootCertificates} from 'node:tls';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {createRequire} from 'node:module';
@@ -32,6 +33,16 @@ for(const packageName of ['libatomic1','libgcc-s1','libstdc++6']) {
   assert.ok(readFileSync('/var/lib/dpkg/status.d/'+packageName,'utf8').includes('Status: install ok installed'));
   assert.ok(existsSync('/usr/share/doc/'+packageName+'/copyright'));
 }
+const libraries=JSON.parse(readFileSync('/usr/share/doc/alert-lab/libraries.json','utf8'));
+for(const [name,item] of Object.entries(libraries)) {
+  assert.equal(item.version,packages[name]);
+  assert.ok(readFileSync('/var/lib/dpkg/status.d/'+name,'utf8').split('\n').includes('Version: '+item.version));
+  assert.equal(item.sha256,createHash('sha256').update(readFileSync(item.path)).digest('hex'));
+}
+assert.deepEqual(Object.keys(libraries).sort(),['libatomic1','libgcc-s1','libstdc++6']);
+assert.ok(readFileSync('/var/lib/dpkg/status.d/libc6','utf8').split('\n').includes('Version: '+packages.libc6));
+const loaded=process.report.getReport().sharedObjects.filter(path=>path.startsWith('/')).map(path=>realpathSync(path));
+for(const name of ['libstdc++6','libgcc-s1'])assert.ok(loaded.includes(realpathSync(libraries[name].path)));
 assert.ok(!readdirSync('/var/lib/dpkg/status.d').some(n=>n.startsWith('zlib')));
 for(const directory of ['/usr/lib','/lib']) {
   assert.ok(!readdirSync(directory,{recursive:true}).some(n=>/(^|\/)libz\.so/.test(n)));
@@ -55,5 +66,6 @@ try {
 console.log('PASS: patched Node receipt/binary identity, UID 1000, library inventory, no OS zlib, no Temporal, SQLite backup, gzip, trusted TLS and untrusted certificate rejection.');
 '''
     subprocess.run(['docker','run','--rm','-i','--network','none','--read-only',
-                    '--cap-drop','ALL','--security-opt','no-new-privileges','--tmpfs','/tmp',
+                    '--cap-drop','ALL','--security-opt','no-new-privileges','--memory','512m','--cpus','2',
+                    '--pids-limit','256','--tmpfs','/tmp:rw,nosuid,nodev,size=128m',
                     '--entrypoint','/usr/local/bin/node',sys.argv[1], '--input-type=module'],input=source,text=True,check=True)

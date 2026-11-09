@@ -11,6 +11,9 @@ WORKDIR /build
 COPY runtime/node-source.json scripts/build-node.py patches/node-zlib.patch ./
 RUN python3 build-node.py
 FROM node-build AS dependencies
+# Refresh the initial inventory from the packages actually installed by apt.
+COPY scripts/runtime-libraries.py runtime/debian.json /build/
+RUN python3 /build/runtime-libraries.py
 COPY test/node-zlib.c scripts/check-node.py /build/
 RUN python3 /build/check-node.py
 RUN npm install --global npm@12.2.2

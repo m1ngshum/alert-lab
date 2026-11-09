@@ -21,6 +21,8 @@
 !tools.lock.json
 !scripts/node-sbom.py
 !scripts/check-node.py
+!scripts/runtime-libraries.py
+!runtime/debian.json
 
 !examples/
 !examples/dogfood/

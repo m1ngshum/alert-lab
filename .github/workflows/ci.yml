@@ -51,7 +51,9 @@ jobs:
           cache-to: type=gha,scope=node-source-${{ matrix.architecture }},mode=max
       - run: python3 scripts/image-check.py alert-lab:local
       - run: python3 scripts/install-tools.py trivy
-      - run: .tools/trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 alert-lab:local
+      - run: |
+          .tools/trivy image --scanners vuln,secret --list-all-pkgs --format json --output scan.json alert-lab:local
+          python3 scripts/security-report.py scan.json "${{ matrix.architecture }}" "$(docker image inspect alert-lab:local --format '{{.Id}}')" security.md
       - if: matrix.architecture == 'amd64'
         run: |
           python3 scripts/install-tools.py helm kind

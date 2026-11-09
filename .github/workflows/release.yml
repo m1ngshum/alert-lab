@@ -36,16 +36,38 @@ jobs:
           cache-to: type=gha,scope=node-source-${{ matrix.architecture }},mode=max
       - run: python3 scripts/image-check.py alert-lab:release-${{ matrix.architecture }}
       - run: python3 scripts/install-tools.py trivy
-      - run: .tools/trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 alert-lab:release-${{ matrix.architecture }}
+      - name: Retain complete native security evidence before review
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          image="alert-lab:release-$ARCHITECTURE"
+          .tools/trivy image --scanners vuln,secret --list-all-pkgs --format json --output "scan-$ARCHITECTURE.json" "$image"
+          python3 scripts/security-report.py "scan-$ARCHITECTURE.json" "$ARCHITECTURE" "$(docker image inspect "$image" --format '{{.Id}}')" "security-$ARCHITECTURE.md"
+          .tools/trivy image --format cyclonedx --output "image-sbom-$ARCHITECTURE.cdx.json" "$image"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" node -p "require('node:fs').readFileSync('/usr/share/doc/node/build.json','utf8')" > "node-build-$ARCHITECTURE.json"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" node -p "require('node:fs').readFileSync('/usr/share/doc/alert-lab/libraries.json','utf8')" > "runtime-libraries-$ARCHITECTURE.json"
+          python3 scripts/node-sbom.py . "$ARCHITECTURE"
       - name: Save exact verified image
         run: docker save -o "image-${{ matrix.architecture }}.tar" "alert-lab:release-${{ matrix.architecture }}"
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: image-${{ matrix.architecture }}.tar
+          subject-path: |
+            image-${{ matrix.architecture }}.tar
+            scan-${{ matrix.architecture }}.json
+            security-${{ matrix.architecture }}.md
+            image-sbom-${{ matrix.architecture }}.cdx.json
+            node-build-${{ matrix.architecture }}.json
+            runtime-libraries-${{ matrix.architecture }}.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verified-image-${{ matrix.architecture }}
-          path: image-${{ matrix.architecture }}.tar
+          path: |
+            image-${{ matrix.architecture }}.tar
+            scan-${{ matrix.architecture }}.json
+            security-${{ matrix.architecture }}.md
+            image-sbom-${{ matrix.architecture }}.cdx.json
+            node-build-${{ matrix.architecture }}.json
+            runtime-libraries-${{ matrix.architecture }}.json
           if-no-files-found: error
           retention-days: 1
   publish:
@@ -82,11 +104,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for architecture in amd64 arm64; do
-            gh attestation verify "verified-images/image-$architecture.tar" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+            for artifact in "image-$architecture.tar" "scan-$architecture.json" "security-$architecture.md" "image-sbom-$architecture.cdx.json" "node-build-$architecture.json" "runtime-libraries-$architecture.json"; do
+              gh attestation verify "verified-images/$artifact" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+            done
             docker load -i "verified-images/image-$architecture.tar"
             test "$(docker image inspect "alert-lab:release-$architecture" --format '{{.Architecture}}')" = "$architecture"
             python3 scripts/image-check.py "alert-lab:release-$architecture"
-            trivy image --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 "alert-lab:release-$architecture"
+            trivy image --scanners vuln,secret --list-all-pkgs --format json --output "rescan-$architecture.json" "alert-lab:release-$architecture"
+            python3 scripts/security-report.py "rescan-$architecture.json" "$architecture" "$(docker image inspect "alert-lab:release-$architecture" --format '{{.Id}}')" "rescan-$architecture.md" "verified-images/scan-$architecture.json"
           done
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -106,7 +131,7 @@ jobs:
           image='ghcr.io/m1ngshum/alert-lab';children={}
           def output(*command):return subprocess.check_output(command,text=True).strip()
           for architecture in ['amd64','arm64']:
-            local='alert-lab:release-'+architecture;reference=image+':0.1.2-'+architecture
+            local='alert-lab:release-'+architecture;reference=image+':0.1.3-'+architecture
             identifier=output('docker','image','inspect',local,'--format','{{.Id}}')
             subprocess.run(['docker','tag',local,reference],check=True)
             pushed=output('docker','push',reference);print(pushed)
@@ -116,8 +141,8 @@ jobs:
             child=json.loads(output('docker','buildx','imagetools','inspect',image+'@'+digest,'--raw'))
             assert child['config']['digest']==identifier,'Pushed image differs from verified image'
             children[architecture]=digest
-          subprocess.run(['docker','buildx','imagetools','create','--tag',image+':0.1.2',*[image+'@'+d for d in children.values()]],check=True)
-          digest=output('docker','buildx','imagetools','inspect',image+':0.1.2','--format','{{.Manifest.Digest}}')
+          subprocess.run(['docker','buildx','imagetools','create','--tag',image+':0.1.3',*[image+'@'+d for d in children.values()]],check=True)
+          digest=output('docker','buildx','imagetools','inspect',image+':0.1.3','--format','{{.Manifest.Digest}}')
           assert re.fullmatch('sha256:[a-f0-9]{64}',digest),digest
           index=json.loads(output('docker','buildx','imagetools','inspect',image+'@'+digest,'--raw'))
           assert len(index['manifests'])==2
@@ -141,8 +166,8 @@ jobs:
           p=Path('charts/alert-lab/values.yaml');s=p.read_text().replace('  digest: ""','  digest: "'+os.environ['IMAGE_DIGEST']+'"');p.write_text(s)
           PY
           helm package charts/alert-lab --destination release
-          helm push release/alert-lab-0.1.2.tgz oci://ghcr.io/m1ngshum/charts
-          trivy image --format cyclonedx --output release/image-sbom.cdx.json "ghcr.io/m1ngshum/alert-lab@$IMAGE_DIGEST"
+          helm push release/alert-lab-0.1.3.tgz oci://ghcr.io/m1ngshum/charts
+          cp verified-images/scan-*.json verified-images/security-*.md verified-images/image-sbom-*.cdx.json verified-images/runtime-libraries-*.json verified-images/node-build-*.json release/
           python3 - <<'PYTHON'
           import json,os,subprocess
           from pathlib import Path
@@ -151,22 +176,25 @@ jobs:
           manifests={m['platform']['architecture']:m['digest'] for m in index['manifests'] if m.get('platform',{}).get('os')=='linux'}
           assert set(manifests)=={'amd64','arm64'},manifests
           for architecture,digest in manifests.items():
-            with Path('release/node-build-'+architecture+'.json').open('w') as output:
-              subprocess.run(['docker','run','--rm','--platform','linux/'+architecture,'--entrypoint','/usr/local/bin/node',image+'@'+digest,'-p',"require('node:fs').readFileSync('/usr/share/doc/node/build.json','utf8')"],stdout=output,check=True)
+            receipt=json.loads(subprocess.check_output(['docker','run','--rm','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--platform','linux/'+architecture,'--entrypoint','/usr/local/bin/node',image+'@'+digest,'-p',"require('node:fs').readFileSync('/usr/share/doc/node/build.json','utf8')"]))
+            assert receipt==json.loads(Path('release/node-build-'+architecture+'.json').read_text()),'Published Node receipt differs from reviewed artifact'
           PYTHON
-          python3 scripts/node-sbom.py release
           trivy fs --format cyclonedx --output release/chart-sbom.cdx.json charts/alert-lab
-          printf 'Image: `ghcr.io/m1ngshum/alert-lab@%s`\n\nChart: `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.2`.\n\nBackports upstream zlib fix df84af25 into a checksum-pinned Node source build. Both native architectures pass direct bundled-zlib regressions and unsuppressed scans. See SECURITY.md and node-build receipts for scope and provenance.\n\nSingle-replica shadow service; keep existing paging active.\n' "$IMAGE_DIGEST" > release/NOTES.md
+          printf 'Image: `ghcr.io/m1ngshum/alert-lab@%s`\n\nChart: `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.3`.\n\nDebian 13 glibc security-maintenance release. Retains the bundled-zlib backport, refreshes GCC library inventory after apt, and publishes complete native scans and SBOMs. Remaining medium/low findings have no fixed Debian-stable package version; this release does not claim they were removed. See SECURITY.md and security-amd64.md/security-arm64.md for current counts and limitations. Both native architectures pass runtime checks; secrets, HIGH/CRITICAL findings and available vendor fixes block release.\n\nSingle-replica shadow service; keep existing paging active.\n' "$IMAGE_DIGEST" > release/NOTES.md
       - name: Attest chart provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            release/alert-lab-0.1.2.tgz
-            release/*-sbom.cdx.json
+            release/alert-lab-0.1.3.tgz
+            release/image-sbom-*.cdx.json
+            release/chart-sbom.cdx.json
             release/node-build-*.json
+            release/runtime-libraries-*.json
+            release/scan-*.json
+            release/security-*.md
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v0.1.2 release/alert-lab-0.1.2.tgz release/image-sbom.cdx.json release/chart-sbom.cdx.json release/node-build-amd64.json release/node-build-arm64.json
-          gh release edit v0.1.2 --draft=false --notes-file release/NOTES.md
+          gh release upload v0.1.3 release/alert-lab-0.1.3.tgz release/image-sbom-*.cdx.json release/chart-sbom.cdx.json release/node-build-*.json release/runtime-libraries-*.json release/scan-*.json release/security-*.md
+          gh release edit v0.1.3 --draft=false --notes-file release/NOTES.md
