@@ -5,6 +5,7 @@ const status=document.querySelector('#status'),steps=document.querySelector('#st
 const auto=document.querySelector('#auto'),live=document.querySelector('#live'),timeline=document.querySelector('#timeline');
 const progress=document.querySelector('#exercise'),exerciseState=document.querySelector('#exercise-state'),countdown=document.querySelector('#countdown');
 const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelector('#cancel-run'),runStatus=document.querySelector('#run-status');
+const historyList=document.querySelector('#history'),historyState=document.querySelector('#history-state'),historyRows=new Map();
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
@@ -17,6 +18,7 @@ function controls() {
   refresh.disabled=locked;more.disabled=locked||cursor===null;run.disabled=locked||!episode.value;
   scenarios.forEach(button=>{button.disabled=locked;});
   downloads.forEach(button=>{button.disabled=locked||report===null;});
+  for(const row of historyRows.values()) {row.review.disabled=locked;row.zip.disabled=locked;}
 }
 function clearReplay() {suite=null;report=null;observed=null;steps.replaceChildren();timeline.replaceChildren();paintExercise();}
 async function request(path,method='GET') {
@@ -47,6 +49,30 @@ async function perform(message,action,quiet=false) {
   }
   finally {if(active===job) {busy=false;active=null;controls();}}
 }
+function clearHistory() {historyRows.clear();historyList.replaceChildren();historyState.textContent='No history loaded.';}
+function historyRow(id,label) {
+  let row=historyRows.get(id);
+  if(!row) {
+    const item=document.createElement('li'),text=document.createElement('p'),buttons=document.createElement('p');buttons.className='controls';
+    const review=document.createElement('button'),zip=document.createElement('button');
+    review.textContent='Review '+id.slice(0,12);zip.textContent='Download ZIP '+id.slice(0,12);
+    for(const [button,exportZip] of [[review,false],[zip,true]])button.addEventListener('click',()=>{
+      if(exerciseRun||(busy&&!active?.quiet))return;
+      follow=false;
+      return perform('Loading past run…',async()=>{
+        episode.value=id;await loadDetail();
+        if(exportZip) {
+          if(report===null)throw new Error('This episode has no recorded decisions to export.');
+          downloadArchive();
+        }
+      });
+    });
+    buttons.append(review,zip);item.append(text,buttons);historyList.prepend(item);
+    row={text,review,zip};historyRows.set(id,row);controls();
+    historyState.textContent=historyRows.size+' episodes loaded. Source status is from the last read; review a run to refresh it.';
+  }
+  if(row.text.textContent!==label)row.text.textContent=label;
+}
 async function loadEpisodes() {
   const previous=episode.value;
   const response=await request('/episodes?cursor='+tail);
@@ -59,6 +85,7 @@ async function loadEpisodes() {
     const option=document.createElement('option');option.value=row.id;
     option.textContent=row.starts_at+' · '+row.source_status+' · rechecks '+row.rechecks+' · '+row.id.slice(0,12);
     episode.append(option);
+    historyRow(row.id,row.starts_at+' · source '+row.source_status+' · '+row.id.slice(0,12));
   }
   cursor=data.nextCursor;
   const selected=!follow&&[...episode.options].some(option=>option.value===previous)?previous:episode.options[episode.options.length-1]?.value;
@@ -72,7 +99,7 @@ async function loadEpisodes() {
 refresh.addEventListener('click',()=>perform('Loading live evidence…',update));
 more.addEventListener('click',()=>perform('Loading more episodes…',update));
 episode.addEventListener('change',()=>{follow=false;perform('Loading selected episode…',loadDetail);});
-token.addEventListener('input',()=>{cancelBackground();clearReplay();cursor=null;tail=0;follow=true;episode.replaceChildren();status.textContent='Token changed. Refresh episodes to unlock access.';controls();});
+token.addEventListener('input',()=>{cancelBackground();clearReplay();cursor=null;tail=0;follow=true;episode.replaceChildren();clearHistory();status.textContent='Token changed. Refresh episodes to unlock access.';controls();});
 scenarios.forEach(button=>button.addEventListener('click',()=>perform('Changing synthetic scenario…',async()=>{
   await request('/scenario/'+button.dataset.scenario,'POST');
   if(button.dataset.scenario==='spike')follow=true;
@@ -120,6 +147,7 @@ async function loadDetail() {
   else addEvent('No recheck scheduled; recommendation awaits a new source event.');
   const label=data.starts_at+' · '+data.source_status+' · '+data.decisions.length+' recorded decisions · '+id.slice(0,12);
   if(episode.selectedOptions[0].textContent!==label)episode.selectedOptions[0].textContent=label;
+  historyRow(id,label+(data.decisions.length?' · latest '+data.decisions.at(-1).decision.kind:' · no recorded decisions'));
   if(data.decisions.length)showReplay(parseSuite(JSON.stringify({schemaVersion:1,cases:[{id,steps:data.decisions.map(row=>({evidence:row.evidence,expectedKind:row.decision.kind}))}]})),data.source_status);
   else {suite=null;report=null;steps.replaceChildren();status.textContent='No decisions recorded yet. Waiting for evidence collection.';}
   observed=data;receivedAt=Date.now();paintExercise();
@@ -139,7 +167,7 @@ async function update() {
 startRun.addEventListener('click',()=>perform('Checking for a fresh exercise…',async()=>{
   exerciseRun={id:null,baseline:0,deadline:Date.now()+20*60000,phase:'starting'};controls();
   runStatus.textContent='Checking that prior episodes are resolved…';
-  tail=0;cursor=null;episode.replaceChildren();follow=true;
+  tail=0;cursor=null;episode.replaceChildren();clearHistory();follow=true;
   do {
     const rows=await loadEpisodes();
     if(rows.some(row=>row.source_status!=='resolved'))throw new Error('Recover all firing episodes before starting a fresh exercise.');

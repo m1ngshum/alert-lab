@@ -25,6 +25,12 @@
 </p>
 <p>Evidence JSON can be imported into the playground. Reports contain ordered actual/expected outcomes and the policy version. Replay does not change the episode or schedule work.</p>
 <p id="status" role="status" aria-live="polite">Loading controls…</p>
+<details id="history-panel">
+<summary>Exercise history</summary>
+<p>Persisted episodes, including manual spikes. Resolved episodes are retained for seven days after source resolution; unresolved episodes remain. The service does not distinguish one-click runs. Newest loaded episodes appear first; use Load more episodes or auto-refresh to load further pages. Open a run for its current source status and recorded decisions.</p>
+<p id="history-state">Enter the sandbox token to load history.</p>
+<ul id="history" aria-label="Past exercise episodes"></ul>
+</details>
 <h2>Ten-minute exercise</h2>
 <p class="controls"><button id="auto-run" disabled>Start ten-minute exercise</button><button id="cancel-run" disabled>Cancel and recover</button></p>
 <p id="run-status" role="status">Starts a fresh spike, waits for both recorded rechecks and human review, recovers, then downloads a ZIP containing JSON and Markdown reports. Keep this page open and visible. Prior episodes must be resolved.</p>
