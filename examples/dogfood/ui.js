@@ -6,6 +6,7 @@ const auto=document.querySelector('#auto'),live=document.querySelector('#live'),
 const progress=document.querySelector('#exercise'),exerciseState=document.querySelector('#exercise-state'),countdown=document.querySelector('#countdown');
 const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelector('#cancel-run'),runStatus=document.querySelector('#run-status');
 const historyList=document.querySelector('#history'),historyState=document.querySelector('#history-state'),historyRows=new Map();
+const compare=document.querySelector('#compare'),comparison=document.querySelector('#comparison'),comparisonState=document.querySelector('#comparison-state');
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
@@ -19,6 +20,7 @@ function controls() {
   scenarios.forEach(button=>{button.disabled=locked;});
   downloads.forEach(button=>{button.disabled=locked||report===null;});
   for(const row of historyRows.values()) {row.review.disabled=locked;row.zip.disabled=locked;}
+  compare.disabled=locked||!token.value;
 }
 function clearReplay() {suite=null;report=null;observed=null;steps.replaceChildren();timeline.replaceChildren();paintExercise();}
 async function request(path,method='GET') {
@@ -40,16 +42,62 @@ async function perform(message,action,quiet=false) {
   if(!quiet)cancelBackground();
   if(busy)return;
   const job={quiet,abort:new AbortController()};active=job;
-  busy=true;if(!quiet) {clearReplay();status.textContent=message;}controls();
+  busy=true;if(!quiet) {clearComparison();clearReplay();status.textContent=message;}controls();
   try {await action();}
   catch(error) {
     if(active!==job||job.abort.signal.aborted)return;
     if(exerciseRun) {exerciseRun=null;runStatus.textContent='Exercise stopped. Recovery is not confirmed; use Recovery before retrying.';}
-    clearReplay();auto.checked=false;live.textContent='Auto-refresh paused after an error. Refresh to retry, then enable it again.';status.textContent='Error: '+error.message;
+    clearComparison();clearReplay();auto.checked=false;live.textContent='Auto-refresh paused after an error. Refresh to retry, then enable it again.';status.textContent='Error: '+error.message;
   }
   finally {if(active===job) {busy=false;active=null;controls();}}
 }
-function clearHistory() {historyRows.clear();historyList.replaceChildren();historyState.textContent='No history loaded.';}
+function clearComparison() {comparison.replaceChildren();comparisonState.textContent='Compare evidence and recorded decisions without starting a spike.';}
+function clearHistory() {clearComparison();historyRows.clear();historyList.replaceChildren();historyState.textContent='No history loaded.';}
+function comparisonTable(caption,previous,latest,ids) {
+  const table=document.createElement('table'),title=document.createElement('caption'),head=document.createElement('tr');title.textContent=caption;table.append(title);
+  for(const label of ['Field','Previous · '+ids[0].slice(0,12),'Latest · '+ids[1].slice(0,12),'Change']) {const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
+  table.append(head);
+  for(const key of new Set([...Object.keys(previous),...Object.keys(latest)])) {
+    const row=document.createElement('tr'),field=document.createElement('th');field.scope='row';field.textContent=key;row.append(field);
+    const values=[previous[key],latest[key]],changed=JSON.stringify(values[0])!==JSON.stringify(values[1]);
+    for(const value of values) {const cell=document.createElement('td');cell.textContent=value===undefined?'Not recorded':JSON.stringify(value);row.append(cell);}
+    const delta=document.createElement('td');delta.textContent=changed?'Changed':'Same';row.append(delta);if(changed)row.className='changed';table.append(row);
+  }
+  comparison.append(table);
+}
+compare.addEventListener('click',()=>{
+  if(exerciseRun||(busy&&!active?.quiet))return;
+  return perform('Loading comparison…',async()=>{
+    let after=0,ids=[];
+    do {
+      const data=await (await request('/episodes?cursor='+after)).json();
+      if(!Array.isArray(data.items))throw new Error('Invalid episode listing.');
+      for(const row of data.items) {
+        if(!row||!/^[a-f0-9]{64}$/.test(row.id)||!Number.isSafeInteger(row.seq)||row.seq<=after)throw new Error('Invalid episode order.');
+        after=row.seq;ids.push(row.id);ids=ids.slice(-2);
+      }
+      if(data.nextCursor===null)break;
+      if(!data.items.length||Number(data.nextCursor)!==after)throw new Error('Invalid episode cursor.');
+    } while(true);
+    if(ids.length<2)throw new Error('Two recorded episodes are needed for comparison.');
+    const details=[];
+    for(const id of ids) {
+      const data=await (await request('/episodes/'+id)).json();
+      if(data.id!==id||!Array.isArray(data.decisions)||!['firing','resolved'].includes(data.source_status))throw new Error('Invalid episode detail.');
+      details.push(data);
+    }
+    comparisonTable('Episode metadata',...details.map(data=>({'Started at':data.starts_at,'Source status':data.source_status,'Source resolution received at':data.completed_at===null?null:time(data.completed_at),'Recorded decisions':data.decisions.length})),ids);
+    for(let i=0;i<Math.max(...details.map(data=>data.decisions.length));i++) {
+      const fields=details.map(data=>{
+        const row=data.decisions[i];if(!row)return {};
+        return {'Recorded at':time(row.created_at),'Evidence collection errors':row.errors,...Object.fromEntries(Object.entries(row.evidence).map(([k,v])=>['Evidence · '+k,v])),...Object.fromEntries(Object.entries(row.decision).map(([k,v])=>['Decision · '+k,v]))};
+      });
+      comparisonTable('Recorded step '+(i+1),...fields,ids);
+    }
+    comparisonState.textContent='Snapshot fetched '+time(Date.now())+' · two latest episodes by recording order, including manual spikes. Steps align by recorded order; Not recorded means a missing field or step, null remains unknown. Source resolution is separate from policy conclusions. Click Compare again to refresh.';
+    status.textContent='Comparison ready. Recorded decisions are shown without rerunning policy or changing either episode.';
+  });
+});
 function historyRow(id,label) {
   let row=historyRows.get(id);
   if(!row) {
