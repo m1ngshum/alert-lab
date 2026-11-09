@@ -29,6 +29,9 @@
 <summary>Exercise history</summary>
 <p>Persisted episodes, including manual spikes. Resolved episodes are retained for seven days after source resolution; unresolved episodes remain. The service does not distinguish one-click runs. Newest loaded episodes appear first; use Load more episodes or auto-refresh to load further pages. Open a run for its current source status and recorded decisions.</p>
 <p id="history-state">Enter the sandbox token to load history.</p>
+<button id="compare" disabled>Compare latest two episodes</button>
+<p id="comparison-state" role="status">Compare evidence and recorded decisions without starting a spike.</p>
+<div id="comparison" role="region" aria-label="Episode comparison tables" tabindex="0"></div>
 <ul id="history" aria-label="Past exercise episodes"></ul>
 </details>
 <h2>Ten-minute exercise</h2>

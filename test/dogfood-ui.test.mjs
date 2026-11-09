@@ -20,7 +20,7 @@ class Element {
  remove(){}
 }
 function browser(extraMarkdown='') {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state'].map(id=>[id,new Element()]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state'].map(id=>[id,new Element()]));
  const saved=[],blobs=[];
  class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
  const scenarios=['spike','recovery'].map(name=>Object.assign(new Element(),{dataset:{scenario:name},textContent:name}));
@@ -28,6 +28,7 @@ function browser(extraMarkdown='') {
  const fixture=JSON.parse(readFileSync(new URL('../web/examples.json',import.meta.url),'utf8')).cases.find(item=>item.id==='persistent-spike').steps;
  const id='a'.repeat(64),other='b'.repeat(64),start='2026-11-08T00:00:00.000Z';
  let count=1,resolved=false,error=0,hold=null,heldPath='',tick,paint,now=Date.parse(start);
+ let transform=data=>data;
  const calls=[];let rows=[{id,seq:1,starts_at:start,source_status:'firing',rechecks:1}];
  const fetch=async(path,options)=>{
   calls.push({path,options});if(hold&&(!heldPath||path===heldPath))await hold;
@@ -35,10 +36,10 @@ function browser(extraMarkdown='') {
   if(path.startsWith('/episodes?'))data={items:rows.filter(row=>row.seq>Number(new URLSearchParams(path.split('?')[1]).get('cursor'))).map(row=>({...row,source_status:resolved?'resolved':'firing'})),nextCursor:null};
   else if(path.startsWith('/scenario/'))data={};
   else data={id:path.split('/').at(-1),starts_at:start,source_status:resolved?'resolved':'firing',next_due:count<3?Date.parse(start)+count*300000:null,completed_at:resolved?Date.parse(start)+610000:null,decisions:fixture.slice(0,count).map((step,i)=>({evidence:step.evidence,decision:{kind:step.expectedKind},created_at:Date.parse(start)+i*300000}))};
-  return {ok:!error,status:error||200,json:async()=>data};
+  return {ok:!error,status:error||200,json:async()=>transform(JSON.parse(JSON.stringify(data)),path)};
  };
  runInNewContext(readFileSync(new URL('../examples/dogfood/ui.js',import.meta.url),'utf8').replace(/^import .*\n/,''),{document,fetch,parseSuite,replay,markdown:report=>markdown(report)+extraMarkdown,AbortSignal,AbortController,setInterval:(fn,ms)=>{if(ms===5000)tick=fn;else paint=fn;},Date:class extends Date {static now(){return now;}},URL:DownloadsURL,Blob,TextEncoder,setTimeout});
- return {elements,document,scenarios,calls,saved,blobs,tick:()=>tick(),paint:()=>paint(),advance:ms=>{now+=ms;},setCount:n=>{count=n;},resolve:()=>{resolved=true;},firing:()=>{resolved=false;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
+ return {elements,document,scenarios,calls,saved,blobs,respond:fn=>{transform=fn;},tick:()=>tick(),paint:()=>paint(),advance:ms=>{now+=ms;},setCount:n=>{count=n;},resolve:()=>{resolved=true;},firing:()=>{resolved=false;},fail:n=>{error=n;},hold:(p,path='')=>{hold=p;heldPath=path;},add:()=>{rows.push({...rows[0],id:other,seq:2});},id,other};
 }
 test('live UI polls persisted decisions, follows new episodes, preserves selection and separates resolution',async()=>{
  const b=browser(),e=b.elements;
@@ -176,4 +177,39 @@ test('history controls are locked during a one-click exercise and stale requests
  const zip=e.history.children[0].children[1].children[1];assert.equal(zip.disabled,true);await zip.fire('click');assert.equal(b.saved.length,0);
  await e['cancel-run'].fire('click');b.firing();b.add();let release;b.hold(new Promise(resolve=>{release=resolve;}));const poll=b.tick();
  e.token.value='changed';await e.token.fire('input');release();b.hold(null);await poll;assert.equal(e.history.children.length,0);assert.equal(e.json.disabled,true);
+});
+
+
+test('comparison reads all pages and shows evidence and recorded decision differences without writes or changing selection',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';await b.tick();
+ const third='c'.repeat(64);b.respond((data,path)=>{
+  if(path==='/episodes?cursor=0')return {items:[{id:b.id,seq:1}],nextCursor:1};
+  if(path==='/episodes?cursor=1')return {items:[{id:b.other,seq:2},{id:third,seq:3}],nextCursor:null};
+  if(path==='/episodes/'+third){data.decisions[0].evidence.rate=99;data.decisions[0].evidence.security=null;data.decisions[0].decision.kind='review';}
+  return data;
+ });
+ await e.compare.fire('click');assert.equal(e.episode.value,b.id);assert.equal(e.comparison.children.length,2);
+ const table=e.comparison.children[1],row=key=>table.children.find(r=>r.children[0]?.textContent===key);
+ assert.equal(row('Evidence · rate').children[1].textContent,'48');assert.equal(row('Evidence · rate').children[2].textContent,'99');assert.equal(row('Evidence · rate').children[3].textContent,'Changed');
+ assert.equal(row('Evidence · security').children[2].textContent,'null');assert.equal(row('Decision · kind').children[2].textContent,'"review"');assert.equal(row('Evidence · logs').children[3].textContent,'Same');
+ assert.match(e['comparison-state'].textContent,/Snapshot fetched/);assert.ok(b.calls.every(c=>c.options.method==='GET'));assert.equal(b.saved.length,0);
+ assert.equal(table.children[1].children[1].textContent,'Previous · '+b.other.slice(0,12));assert.equal(table.children[1].children[2].textContent,'Latest · '+third.slice(0,12));
+});
+test('comparison handles unequal or empty runs and hostile text as text; token changes and errors clear snapshots',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.add();b.setCount(3);
+ b.respond((data,path)=>{if(path==='/episodes/'+b.other&&data.decisions.length){data.decisions=data.decisions.slice(0,1);data.decisions[0].decision.title='<img src=x onerror=alert(1)>';delete data.decisions[0].evidence.logs;}return data;});
+ await e.compare.fire('click');assert.equal(e.comparison.children.length,4);
+ const first=e.comparison.children[1],missing=first.children.find(r=>r.children[0]?.textContent==='Evidence · logs');assert.equal(missing.children[2].textContent,'Not recorded');
+ assert.equal(first.children.find(r=>r.children[0]?.textContent==='Decision · title').children[2].textContent,'"<img src=x onerror=alert(1)>"');
+ assert.equal(e.comparison.children[2].children[2].children[2].textContent,'Not recorded');
+ b.fail(401);await e.compare.fire('click');assert.equal(e.comparison.children.length,0);assert.match(e.status.textContent,/Unauthorized/);
+ b.fail(0);b.setCount(0);await e.compare.fire('click');assert.equal(e.comparison.children.length,1);
+ e.token.value='replacement';await e.token.fire('input');assert.equal(e.comparison.children.length,0);
+});
+test('comparison rejects too few episodes and bad cursors, locks during exercises, and clears a snapshot after failed polling',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';await e.compare.fire('click');assert.match(e.status.textContent,/Two recorded episodes/);
+ b.respond(()=>({items:[],nextCursor:1}));await e.compare.fire('click');assert.match(e.status.textContent,/Invalid episode cursor/);assert.equal(e.comparison.children.length,0);
+ b.respond(data=>data);b.add();b.resolve();await e['auto-run'].fire('click');assert.equal(e.compare.disabled,true);const before=b.calls.length;await e.compare.fire('click');assert.equal(b.calls.length,before);await e['cancel-run'].fire('click');
+ let release;b.hold(new Promise(resolve=>{release=resolve;}),'/episodes/'+b.other);const comparing=e.compare.fire('click');await new Promise(resolve=>setImmediate(resolve));assert.equal(e.compare.disabled,true);release();b.hold(null);await comparing;
+ assert.equal(e.comparison.children.length,2);b.fail(500);await b.tick();assert.equal(e.comparison.children.length,0);
 });
