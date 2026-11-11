@@ -6,9 +6,9 @@ The service receives Alertmanager webhooks, reads explicitly configured Promethe
 
 ## Playground and replay
 
-Open the public demo linked in this repository's About section, or serve `web/` with `python3 -m http.server 8771 --directory web`.
+Open the [public playground](https://alert-lab.m1ngshum.com), or serve `web/` with `python3 -m http.server 8771 --directory web`.
 
-Choose one of five scenarios, edit evidence, inspect the decision and simulate rechecks. Import JSON to replay ordered evidence snapshots separately from the sliders. Export current evidence or download JSON/Markdown results. The public demo uses synthetic evidence and makes no connection to a deployed runtime.
+Choose one of five scenarios, edit evidence, inspect the decision and simulate rechecks. Import JSON to replay ordered evidence snapshots separately from the sliders. Export current evidence or download JSON/Markdown results. The public demo uses synthetic evidence and makes no connection to a deployed runtime. Netlify publishes only `dist/`, built from `web/` with `node scripts/build-demo.mjs`; the authenticated local lab stays inside its isolated VM. Cloudflare manages the demo subdomain DNS.
 
 With Node 26.13.0:
 
