@@ -20,7 +20,7 @@ class Element {
  remove(){}
 }
 function browser(extraMarkdown='') {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state','changes-only','comparison-json','comparison-markdown'].map(id=>[id,Object.assign(new Element(),{id})]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state','changes-only','comparison-json','comparison-markdown','comparison-zip'].map(id=>[id,Object.assign(new Element(),{id})]));
  elements['changes-only'].checked=false;
  const saved=[],blobs=[];
  class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
@@ -259,4 +259,26 @@ test('comparison downloads handle no differences and fail closed on missing snap
  e.token.value='replacement';await e.token.fire('input');assert.equal(e['comparison-json'].disabled,true);const saved=b.saved.length;await e['comparison-markdown'].fire('click');assert.equal(b.saved.length,saved);
  await e.compare.fire('click');b.fail(500);await b.tick();assert.equal(e['comparison-json'].disabled,true);await e['comparison-json'].fire('click');assert.equal(b.saved.length,saved);
  b.fail(0);b.resolve();await e.compare.fire('click');assert.equal(e['comparison-markdown'].disabled,false);await e['auto-run'].fire('click');assert.equal(e['comparison-json'].disabled,true);await e['comparison-json'].fire('click');assert.equal(b.saved.length,saved);
+});
+
+test('comparison ZIP contains exactly the individual JSON and Markdown bytes, UTF-8 and valid CRCs without requests',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.add();
+ b.respond((data,path)=>{if(path==='/episodes/'+b.other){data.decisions[0].evidence.rate=48.123456789;data.decisions[0].errors=['雪 🧪 <script> | text'];}return data;});
+ await e.compare.fire('click');const calls=b.calls.length;
+ await e['comparison-json'].fire('click');await e['comparison-markdown'].fire('click');await e['comparison-zip'].fire('click');
+ const zip=Buffer.from(await b.blobs[2].arrayBuffer()),entries=[];let offset=0;
+ while(zip.readUInt32LE(offset)===0x04034b50){const size=zip.readUInt32LE(offset+18),length=zip.readUInt16LE(offset+26),name=zip.subarray(offset+30,offset+30+length).toString(),body=zip.subarray(offset+30+length,offset+30+length+size);assert.equal(zip.readUInt16LE(offset+6),0x800);assert.equal(zip.readUInt16LE(offset+8),0);assert.equal(zip.readUInt32LE(offset+14),crc32(body));entries.push({name,body,offset});offset+=30+length+size;}
+ assert.deepEqual(entries.map(e=>e.name),['comparison.json','comparison.md']);
+ for(let i=0;i<2;i++){assert.deepEqual(entries[i].body,Buffer.from(await b.blobs[i].arrayBuffer()));assert.equal(zip.readUInt32LE(offset),0x02014b50);assert.equal(zip.readUInt32LE(offset+42),entries[i].offset);offset+=46+zip.readUInt16LE(offset+28);}
+ assert.equal(zip.readUInt32LE(offset),0x06054b50);assert.equal(zip.readUInt16LE(offset+10),2);assert.equal(offset+22,zip.length);assert.ok(entries[1].body.toString().includes('雪 🧪'));assert.ok(!entries[0].body.toString().includes('sandbox-only'));
+ assert.equal(b.calls.length,calls);assert.equal(b.saved.length,3);assert.equal(b.saved[2],'alert-lab-comparison-'+b.id+'-'+b.other+'.zip');
+ e['changes-only'].checked=true;await e['changes-only'].fire('change');await e['comparison-zip'].fire('click');assert.deepEqual(Buffer.from(await b.blobs[3].arrayBuffer()),zip);
+});
+
+test('comparison ZIP follows snapshot invalidation and exercise locks without stale downloads',async()=>{
+ const b=browser(),e=b.elements;assert.equal(e['comparison-zip'].disabled,true);await e['comparison-zip'].fire('click');assert.equal(b.saved.length,0);
+ e.token.value='sandbox-only';b.add();await e.compare.fire('click');assert.equal(e['comparison-zip'].disabled,false);
+ e.token.value='replacement';await e.token.fire('input');await e['comparison-zip'].fire('click');assert.equal(e['comparison-zip'].disabled,true);assert.equal(b.saved.length,0);
+ await e.compare.fire('click');b.fail(500);await b.tick();await e['comparison-zip'].fire('click');assert.equal(e['comparison-zip'].disabled,true);assert.equal(b.saved.length,0);
+ b.fail(0);b.resolve();await e.compare.fire('click');await e['auto-run'].fire('click');assert.equal(e['comparison-zip'].disabled,true);await e['comparison-zip'].fire('click');assert.equal(b.saved.length,0);
 });

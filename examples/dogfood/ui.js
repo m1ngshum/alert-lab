@@ -8,7 +8,7 @@ const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelec
 const historyList=document.querySelector('#history'),historyState=document.querySelector('#history-state'),historyRows=new Map();
 const compare=document.querySelector('#compare'),comparison=document.querySelector('#comparison'),comparisonState=document.querySelector('#comparison-state');
 const changesOnly=document.querySelector('#changes-only');
-const comparisonDownloads=['comparison-json','comparison-markdown'].map(id=>document.querySelector('#'+id));
+const comparisonDownloads=['comparison-json','comparison-markdown','comparison-zip'].map(id=>document.querySelector('#'+id));
 let comparisonTables=[],comparisonSnapshot=null;
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
@@ -90,8 +90,8 @@ function comparisonTable(caption,previous,latest,ids) {
 comparisonDownloads.forEach(button=>button.addEventListener('click',()=>{
   if(exerciseRun||(busy&&!active?.quiet)||comparisonSnapshot===null)return;
   const result={schemaVersion:1,reportType:'changes-only-comparison',...comparisonSnapshot,alignment:'Steps align by recorded order.',sourceResolution:'Source resolution is separate from policy conclusions.',deltaMeaning:'Latest minus previous in original units; display rounded to six significant digits. Missing/non-numeric delta is null; see delta text for out-of-range arithmetic.',sections:comparisonTables.map(({caption,changes})=>({title:caption,fields:changes}))};
-  const isMarkdown=button.id==='comparison-markdown';let body=JSON.stringify(result,null,2)+'\n';
-  if(isMarkdown) {
+  const isMarkdown=button.id==='comparison-markdown',isZip=button.id==='comparison-zip',json=JSON.stringify(result,null,2)+'\n';let body=json;
+  if(isMarkdown||isZip) {
     const literal=value=>String(value).replace(/[\\`*_{}[\]()#+.!<>|~-]/g,'\\$&').replace(/[\r\n]/g,' ');
     const value=entry=>entry.recorded?literal(JSON.stringify(entry.value)):'Not recorded';
     const lines=['# Alert Lab changes-only comparison','',`Snapshot fetched: ${result.fetchedAt}`,`Previous: ${result.previousId}`,`Latest: ${result.latestId}`,'',result.alignment+' '+result.sourceResolution+' Only changed fields are included.',result.deltaMeaning,''];
@@ -104,7 +104,9 @@ comparisonDownloads.forEach(button=>button.addEventListener('click',()=>{
     }
     body=lines.join('\n');
   }
-  save(new Blob([body],{type:isMarkdown?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}),'alert-lab-comparison-'+result.previousId+'-'+result.latestId+(isMarkdown?'.md':'.json'));
+  const filename='alert-lab-comparison-'+result.previousId+'-'+result.latestId;
+  if(isZip)saveArchive([['comparison.json',json],['comparison.md',body]],filename+'.zip');
+  else save(new Blob([body],{type:isMarkdown?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}),filename+(isMarkdown?'.md':'.json'));
 }));
 compare.addEventListener('click',()=>{
   if(exerciseRun||(busy&&!active?.quiet))return;
@@ -303,7 +305,10 @@ setInterval(()=>{
   if(auto.checked&&!document.hidden&&token.value&&!busy)return perform('Refreshing live evidence…',update,true);
 },5000);
 function downloadArchive() {
-  const encoder=new TextEncoder(),files=[['replay.json',JSON.stringify(report,null,2)+'\n'],['replay.md',markdown(report)]];
+  saveArchive([['replay.json',JSON.stringify(report,null,2)+'\n'],['replay.md',markdown(report)]],'alert-lab-'+episode.value+'-reports.zip');
+}
+function saveArchive(files,archiveName) {
+  const encoder=new TextEncoder();
   const local=[],directory=[];let offset=0;
   for(const [name,text] of files) {
     const filename=encoder.encode(name),body=encoder.encode(text);
@@ -320,8 +325,8 @@ function downloadArchive() {
     local.push(header,filename,body);directory.push(central,filename);offset+=header.length+filename.length+body.length;
   }
   const end=new Uint8Array(22),e=new DataView(end.buffer);
-  e.setUint32(0,0x06054b50,true);e.setUint16(8,2,true);e.setUint16(10,2,true);e.setUint32(12,directory.reduce((size,part)=>size+part.length,0),true);e.setUint32(16,offset,true);
-  save(new Blob([...local,...directory,end],{type:'application/zip'}),'alert-lab-'+episode.value+'-reports.zip');
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,directory.reduce((size,part)=>size+part.length,0),true);e.setUint32(16,offset,true);
+  save(new Blob([...local,...directory,end],{type:'application/zip'}),archiveName);
 }
 function save(blob,filename) {
   const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;
