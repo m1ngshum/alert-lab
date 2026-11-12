@@ -8,7 +8,8 @@ const startRun=document.querySelector('#auto-run'),cancelRun=document.querySelec
 const historyList=document.querySelector('#history'),historyState=document.querySelector('#history-state'),historyRows=new Map();
 const compare=document.querySelector('#compare'),comparison=document.querySelector('#comparison'),comparisonState=document.querySelector('#comparison-state');
 const changesOnly=document.querySelector('#changes-only');
-let comparisonTables=[];
+const comparisonDownloads=['comparison-json','comparison-markdown'].map(id=>document.querySelector('#'+id));
+let comparisonTables=[],comparisonSnapshot=null;
 const refresh=document.querySelector('#refresh'),more=document.querySelector('#more'),run=document.querySelector('#replay');
 const downloads=['evidence','json','markdown'].map(id=>document.querySelector('#'+id));
 const scenarios=[...document.querySelectorAll('[data-scenario]')];
@@ -24,6 +25,7 @@ function controls() {
   for(const row of historyRows.values()) {row.review.disabled=locked;row.zip.disabled=locked;}
   compare.disabled=locked||!token.value;
   changesOnly.disabled=locked||!comparisonTables.length;
+  comparisonDownloads.forEach(button=>{button.disabled=locked||comparisonSnapshot===null;});
 }
 function clearReplay() {suite=null;report=null;observed=null;steps.replaceChildren();timeline.replaceChildren();paintExercise();}
 async function request(path,method='GET') {
@@ -54,7 +56,7 @@ async function perform(message,action,quiet=false) {
   }
   finally {if(active===job) {busy=false;active=null;controls();}}
 }
-function clearComparison() {comparisonTables=[];changesOnly.disabled=true;comparison.replaceChildren();comparisonState.textContent='Compare evidence and recorded decisions without starting a spike.';}
+function clearComparison() {comparisonTables=[];comparisonSnapshot=null;changesOnly.disabled=true;comparisonDownloads.forEach(button=>{button.disabled=true;});comparison.replaceChildren();comparisonState.textContent='Compare evidence and recorded decisions without starting a spike.';}
 function clearHistory() {clearComparison();historyRows.clear();historyList.replaceChildren();historyState.textContent='No history loaded.';}
 function filterComparison() {
   for(const {title,caption,rows} of comparisonTables) {
@@ -75,15 +77,35 @@ function comparisonTable(caption,previous,latest,ids) {
   const table=document.createElement('table'),title=document.createElement('caption'),head=document.createElement('tr');title.textContent=caption;table.append(title);
   for(const label of ['Field','Previous · '+ids[0].slice(0,12),'Latest · '+ids[1].slice(0,12),'Change','Delta (latest − previous)']) {const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
   table.append(head);
-  const rows=[];
+  const rows=[],changes=[];
   for(const key of new Set([...Object.keys(previous),...Object.keys(latest)])) {
     const row=document.createElement('tr'),field=document.createElement('th');field.scope='row';field.textContent=key;row.append(field);
     const values=[previous[key],latest[key]],changed=JSON.stringify(values[0])!==JSON.stringify(values[1]);
     for(const value of values) {const cell=document.createElement('td');cell.textContent=value===undefined?'Not recorded':JSON.stringify(value);row.append(cell);}
     const change=document.createElement('td'),delta=document.createElement('td');change.textContent=changed?'Changed':'Same';delta.textContent=numericDelta(...values);row.append(change,delta);if(changed)row.className='changed';table.append(row);rows.push(row);
+    if(changed)changes.push({field:key,previous:values[0]===undefined?{recorded:false}:{recorded:true,value:values[0]},latest:values[1]===undefined?{recorded:false}:{recorded:true,value:values[1]},numericDelta:values.every(value=>typeof value==='number'&&Number.isFinite(value))&&Number.isFinite(values[1]-values[0])?values[1]-values[0]:null,delta:delta.textContent});
   }
-  comparison.append(table);comparisonTables.push({title,caption,rows});filterComparison();
+  comparison.append(table);comparisonTables.push({title,caption,rows,changes});filterComparison();
 }
+comparisonDownloads.forEach(button=>button.addEventListener('click',()=>{
+  if(exerciseRun||(busy&&!active?.quiet)||comparisonSnapshot===null)return;
+  const result={schemaVersion:1,reportType:'changes-only-comparison',...comparisonSnapshot,alignment:'Steps align by recorded order.',sourceResolution:'Source resolution is separate from policy conclusions.',deltaMeaning:'Latest minus previous in original units; display rounded to six significant digits. Missing/non-numeric delta is null; see delta text for out-of-range arithmetic.',sections:comparisonTables.map(({caption,changes})=>({title:caption,fields:changes}))};
+  const isMarkdown=button.id==='comparison-markdown';let body=JSON.stringify(result,null,2)+'\n';
+  if(isMarkdown) {
+    const literal=value=>String(value).replace(/[\\`*_{}[\]()#+.!<>|~-]/g,'\\$&').replace(/[\r\n]/g,' ');
+    const value=entry=>entry.recorded?literal(JSON.stringify(entry.value)):'Not recorded';
+    const lines=['# Alert Lab changes-only comparison','',`Snapshot fetched: ${result.fetchedAt}`,`Previous: ${result.previousId}`,`Latest: ${result.latestId}`,'',result.alignment+' '+result.sourceResolution+' Only changed fields are included.',result.deltaMeaning,''];
+    for(const section of result.sections) {
+      lines.push('## '+section.title,'');
+      if(!section.fields.length) {lines.push('No differences.','');continue;}
+      lines.push('| Field | Previous | Latest | Delta (latest − previous) |','| --- | --- | --- | --- |');
+      for(const field of section.fields)lines.push(`| ${literal(field.field)} | ${value(field.previous)} | ${value(field.latest)} | ${literal(field.delta)} |`);
+      lines.push('');
+    }
+    body=lines.join('\n');
+  }
+  save(new Blob([body],{type:isMarkdown?'text/markdown;charset=utf-8':'application/json;charset=utf-8'}),'alert-lab-comparison-'+result.previousId+'-'+result.latestId+(isMarkdown?'.md':'.json'));
+}));
 compare.addEventListener('click',()=>{
   if(exerciseRun||(busy&&!active?.quiet))return;
   return perform('Loading comparison…',async()=>{
@@ -113,7 +135,8 @@ compare.addEventListener('click',()=>{
       });
       comparisonTable('Recorded step '+(i+1),...fields,ids);
     }
-    comparisonState.textContent='Snapshot fetched '+time(Date.now())+' · two latest episodes by recording order, including manual spikes. Steps align by recorded order; Not recorded means a missing field or step, null remains unknown. Source resolution is separate from policy conclusions. Click Compare again to refresh.';
+    comparisonSnapshot={fetchedAt:time(Date.now()),previousId:ids[0],latestId:ids[1]};
+    comparisonState.textContent='Snapshot fetched '+comparisonSnapshot.fetchedAt+' · two latest episodes by recording order, including manual spikes. Steps align by recorded order; Not recorded means a missing field or step, null remains unknown. Source resolution is separate from policy conclusions. Click Compare again to refresh.';
     status.textContent='Comparison ready. Recorded decisions are shown without rerunning policy or changing either episode.';
   });
 });
