@@ -20,7 +20,7 @@ class Element {
  remove(){}
 }
 function browser(extraMarkdown='') {
- const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state','changes-only'].map(id=>[id,new Element()]));
+ const elements=Object.fromEntries(['token','episode','status','steps','auto','live','timeline','refresh','more','replay','evidence','json','markdown','exercise','exercise-state','countdown','auto-run','cancel-run','run-status','history','history-state','compare','comparison','comparison-state','changes-only','comparison-json','comparison-markdown'].map(id=>[id,Object.assign(new Element(),{id})]));
  elements['changes-only'].checked=false;
  const saved=[],blobs=[];
  class DownloadsURL extends URL {static createObjectURL(blob){blobs.push(blob);return URL.createObjectURL(blob);}}
@@ -236,4 +236,27 @@ test('numeric deltas use finite numbers only, preserve sign and small difference
  e['changes-only'].checked=true;await e['changes-only'].fire('change');assert.equal(row('equal').hidden,true);assert.equal(row('tiny').hidden,false);assert.equal(row('unknown').hidden,false);assert.equal(row('missing').hidden,false);
  const decision=table.children.find(r=>r.children[0]?.textContent==='Decision · kind');assert.equal(decision.hidden,false);assert.equal(decision.children[4].textContent,'—');
  b.fail(401);await e.compare.fire('click');assert.equal(e['changes-only'].disabled,true);assert.equal(e.comparison.children.length,0);
+});
+
+test('changes-only downloads preserve snapshot identity, raw values, numeric deltas and escaped Markdown without requests',async()=>{
+ const b=browser(),e=b.elements;e.token.value='sandbox-only';b.add();
+ const pairs={fraction:[0.3,0.1],rounded:[0,1/3],tiny:[0,1e-12],equal:[4,4],unknown:[null,2],missing:[1,undefined],overflow:[-Number.MAX_VALUE,Number.MAX_VALUE],text:['before','<img src=x> | [click](https://example.test)\n# heading'],boolean:[false,true]};
+ b.respond((data,path)=>{if(!path.startsWith('/episodes?')){const latest=path.endsWith(b.other);data.decisions[0].evidence=Object.fromEntries(Object.entries(pairs).map(([key,values])=>[key,values[latest?1:0]]));data.decisions[0].decision.kind=latest?'review':'observe';}return data;});
+ await e.compare.fire('click');assert.equal(e['comparison-json'].disabled,false);const calls=b.calls.length;
+ await e['comparison-json'].fire('click');const text=await b.blobs[0].text(),report=JSON.parse(text),fields=report.sections[1].fields,field=key=>fields.find(f=>f.field==='Evidence · '+key);
+ assert.match(report.alignment,/recorded order/);assert.match(report.sourceResolution,/separate from policy/);assert.equal(report.reportType,'changes-only-comparison');assert.equal(report.schemaVersion,1);assert.equal(report.previousId,b.id);assert.equal(report.latestId,b.other);assert.equal(report.fetchedAt,'2026-11-08T00:00:00.000Z');
+ assert.equal(field('fraction').numericDelta,0.1-0.3);assert.equal(field('fraction').delta,'≈ -0.2');assert.equal(field('rounded').delta,'≈ +0.333333');assert.equal(field('tiny').numericDelta,1e-12);assert.equal(field('equal'),undefined);
+ assert.deepEqual(field('unknown').previous,{recorded:true,value:null});assert.deepEqual(field('missing').latest,{recorded:false});assert.equal(field('missing').delta,'—');assert.equal(field('overflow').numericDelta,null);assert.equal(field('overflow').delta,'Out of range');assert.equal(field('boolean').numericDelta,null);
+ assert.ok(fields.some(f=>f.field==='Decision · kind'&&f.latest.value==='review'));assert.ok(!text.includes('sandbox-only')&&!text.includes('Bearer'));
+ e['changes-only'].checked=true;await e['changes-only'].fire('change');b.advance(1000);await e['comparison-json'].fire('click');assert.equal(await b.blobs[1].text(),text);
+ await e['comparison-markdown'].fire('click');const md=await b.blobs[2].text();assert.match(md,/Latest minus previous/);assert.ok(md.includes('≈ \\-0\\.2'));assert.ok(md.includes('Not recorded'));assert.ok(md.includes('\\<img src=x\\> \\| \\[click\\]\\(https:\/\/example\\.test\\)'));assert.ok(!md.includes('\n# heading'));assert.ok(md.includes('\\<img'));
+ assert.equal(b.calls.length,calls);assert.ok(b.saved[0].endsWith(b.id+'-'+b.other+'.json'));assert.ok(b.saved[2].endsWith('.md'));
+});
+
+test('comparison downloads handle no differences and fail closed on missing snapshots, token/error changes and exercise locks',async()=>{
+ const b=browser(),e=b.elements;assert.equal(e['comparison-json'].disabled,true);await e['comparison-json'].fire('click');assert.equal(b.saved.length,0);
+ e.token.value='sandbox-only';b.add();await e.compare.fire('click');await e['comparison-json'].fire('click');assert.ok(JSON.parse(await b.blobs[0].text()).sections.every(s=>s.fields.length===0));await e['comparison-markdown'].fire('click');assert.match(await b.blobs[1].text(),/No differences\./);
+ e.token.value='replacement';await e.token.fire('input');assert.equal(e['comparison-json'].disabled,true);const saved=b.saved.length;await e['comparison-markdown'].fire('click');assert.equal(b.saved.length,saved);
+ await e.compare.fire('click');b.fail(500);await b.tick();assert.equal(e['comparison-json'].disabled,true);await e['comparison-json'].fire('click');assert.equal(b.saved.length,saved);
+ b.fail(0);b.resolve();await e.compare.fire('click');assert.equal(e['comparison-markdown'].disabled,false);await e['auto-run'].fire('click');assert.equal(e['comparison-json'].disabled,true);await e['comparison-json'].fire('click');assert.equal(b.saved.length,saved);
 });

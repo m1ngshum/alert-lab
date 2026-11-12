@@ -31,6 +31,8 @@
 <p id="history-state">Enter the sandbox token to load history.</p>
 <button id="compare" disabled>Compare latest two episodes</button>
 <label class="watch"><input id="changes-only" type="checkbox" disabled> Changes only</label>
+<p class="controls"><button id="comparison-json" disabled>Download changes JSON</button><button id="comparison-markdown" disabled>Download changes Markdown</button></p>
+<p>Comparison downloads always include only changed fields from the loaded snapshot, even when Changes only is off. JSON preserves raw values, missing/null distinctions and numeric deltas; Markdown uses the displayed rounded deltas. These are comparison reports, not replay inputs.</p>
 <p>Numeric deltas are latest minus previous in the original units, rounded to six significant digits; ≈ marks rounding. Missing, unknown and non-numeric values have no delta.</p>
 <p id="comparison-state" role="status">Compare evidence and recorded decisions without starting a spike.</p>
 <div id="comparison" role="region" aria-label="Episode comparison tables" tabindex="0"></div>
