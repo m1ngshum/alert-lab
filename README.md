@@ -4,6 +4,10 @@ From alert evidence to accountable follow-up: an interactive playground, determi
 
 The service receives Alertmanager webhooks, reads explicitly configured Prometheus evidence, records recommendations and performs bounded rechecks. It never changes workloads, silences alerts, pages responders or calls a model. Keep your existing paging path active.
 
+## Roadmap and documentation
+
+See [ROADMAP.md](ROADMAP.md) for delivered features and the planned optional Jev/OpenRouter classifier. No decision model is connected today. [DOCUMENTATION.md](DOCUMENTATION.md) indexes the documentation and records its review boundaries.
+
 ## Playground and replay
 
 Open the [public playground](https://alert-lab.m1ngshum.com), or serve `web/` with `python3 -m http.server 8771 --directory web`.
