@@ -25,7 +25,13 @@ Replay needs no dependencies. Format: `{"schemaVersion":1,"cases":[{"id":"exampl
 
 Limits: 1 MiB input, 1,000 total steps, unique case IDs. Exit codes: 0 success, 1 expectation mismatch, 2 input/usage error. Input is data, never executable code. Markdown reports escape imported strings.
 
+## Alert Evidence Review plugin
+
+The isolated [remote MCP service and plugin package](mcp/README.md) replay supplied sanitized evidence and compare recommendations under this project's narrow reference policy. They do not connect to the private Alert Lab service. Deployment and directory review status are recorded in [the review record](mcp/REVIEW.md); local validation does not establish a live or published plugin.
+
 ## Install the service
+
+The [roadmap](ROADMAP.md) tracks source/release automation, monitoring, capacity, recovery and a host pilot. The public MCP Worker has a separate [operations runbook](mcp/OPERATIONS.md); SQLite/Helm instructions below apply only to the internal service.
 
 v0.1.3 keeps Debian 13 glibc and publishes complete native security inventories. Remaining medium/low findings have no Debian-stable package fix; no additional CVE removal is claimed. See [SECURITY.md](SECURITY.md) and the release’s per-architecture scan reports.
 

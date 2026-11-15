@@ -5,16 +5,18 @@ Reviewed 15 November 2026 against source baseline `73a643fed7aeb640be17845604335
 | Document | Purpose and review result |
 | --- | --- |
 | [README](README.md) | Current public playground, replay contract, released runtime and install commands. Added roadmap/status navigation; no inference occurs today. |
-| [Roadmap](ROADMAP.md) | Delivered baseline, selected optional Jev integration, acceptance gates and deferred work. |
+| [Roadmap](ROADMAP.md) | Delivered baseline, separate optional internal Jev and public MCP tracks, acceptance gates and deferred work. |
 | [Contributing](CONTRIBUTING.md) | Regression, policy-preservation and CI expectations. No incidental automation of operational actions. |
 | [Operations](OPERATIONS.md) | Backup/restore, single-replica/PVC lifecycle and protected artifact publishing. Updated chart verification example to released v0.1.3. |
 | [Security](SECURITY.md) | Supported scope, bundled-zlib backport and dated residual-CVE disclosure. Counts remain historical until a new scan; this review does not renew them. |
 | [Review record](REVIEW.md) | Historical Astra review and validation snapshots. Earlier pending statements describe their dated candidate, not current release status. Publication of v0.1.3 was verified through the GitHub release record; no historical review evidence rewritten. |
 | [Isolated lab](examples/dogfood/README.md) | Host isolation, real rechecks, UI/replay/comparison and teardown. Confirmed launcher/image/chart still v0.1.2; documented mismatch and tracked separate upgrade. No host/VM operations performed. |
 
-## Separate MCP/plugin working tree
+## Separate MCP/plugin documentation and implementation
 
-The existing checkout has an uncommitted `mcp/` subtree and a README link to it; neither is part of this documentation PR. Reviewed its README, REVIEW record and plugin skill for boundaries: deterministic supplied sanitized evidence, simulated classifier, no private runtime connector, and no operational actions. Its latest local record says deployed, portal scans passed and owner chose not to submit. Earlier candidate-pending entries remain historical. Those are local records, not new live verification in this review. The portal/host and directory status must be reconciled from current receipts before a future source publication; do not interpret ready/unsubmitted as listed.
+This checkpoint publishes [MCP guidance](mcp/README.md), [Worker operations](mcp/OPERATIONS.md) and [the dated MCP review record](mcp/REVIEW.md). The Worker implementation, package manifests, scripts and plugin package remain in a separate local working tree and are not part of this documentation change. The documented package commands require that implementation checkout; dedicated MCP CI remains an open milestone.
+
+The source/metadata review covers deterministic supplied sanitized evidence, a simulated classifier, no private-runtime connector and no operational actions. Recorded 13–14 November evidence describes deployment and automated draft scans; the owner chose ready without submitting. This documentation reconciliation does not rerun those checks or establish native host behavior, current health, external approval or publication. Earlier candidate-pending statements remain historical, and any future runtime source publication requires exact source/artifact and current receipt reconciliation.
 
 ## Maintenance
 

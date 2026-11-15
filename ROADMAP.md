@@ -22,7 +22,47 @@ Selected direction: **Jev through OpenRouter, off by default**, used at the exis
 
 - Reconcile the committed dogfood launcher/README/chart/image pins with v0.1.3 in a separate tested change; do not silently substitute a local upgrade for a repository default.
 - Review the open base-image update with fresh, unsuppressed scans and both-architecture validation. Previously dated vulnerability counts are not a current scan.
-- Reconcile the separate uncommitted Alert Evidence Review MCP/plugin work before source publication. Its local record says deployed and portal scans passed, with owner decision to leave it unsubmitted; this is not a published directory listing or a model integration.
+- Reconcile the separate uncommitted Alert Evidence Review MCP/plugin implementation before source publication. Its recorded deployment and unsubmitted directory status are detailed in the [public MCP track](#public-mcp-track) below; it is separate from the internal Jev proposal.
 - After a useful synthetic model evaluation, prepare a short demo and reproducible engineering post. Never claim measured incident improvement without labeled historical/shadow evaluation. External posts need explicit authorization.
 
-GPT Decisions, other providers, operator/CRDs, Terraform/CDK, automatic remediation and production deployment are deferred. Scope them separately if needed.
+GPT Decisions, other providers, operator/CRDs, Terraform/CDK, automatic remediation and new internal-service production deployments are deferred. Scope them separately if needed.
+
+## Public MCP track
+
+Planning baseline: 15 November 2026. Owner: m1ngshum. This roadmap covers the internal shadow service, public synthetic playground and isolated Alert Evidence Review MCP plugin. They share a reference policy, not a deployment or release version.
+
+The private Alert Lab Delivery Project tracks live status, blockers, acceptance evidence and dependencies. Private planning issues are the execution record; this file is the public-safe milestone map. Roadmap inclusion does not authorize deployment, spending, merge or submission.
+
+### MCP recorded baseline
+
+- The internal service and OCI chart have a documented v0.1.3 release. Their database, credentials, Prometheus collection and backup procedure do not apply to the public Worker.
+- Alert Evidence Review 0.1.0 was deployed to staging and production. Recorded 13–14 November checks include matching source receipts and seven passing synthetic SDK checks per environment. These are dated evidence, not continuous health or capacity assurance.
+- The plugin draft's metadata, skill and MCP scans passed on 14 November. The owner chose **ready without submitting**. No legal submission attestations were accepted; no review or publication is claimed.
+- The 14 November focused source/configuration review, including Astra, found no confirmed reachable vulnerability. That pass did not establish current live configuration parity, provider retention, adversarial-load resilience or native host behavior.
+
+### MCP milestones and acceptance
+
+| Milestone | Scope and acceptance | Dependencies |
+| --- | --- | --- |
+| M0 — Reproducible source baseline | Review and commit the currently local MCP implementation; run required hosted CI including dedicated MCP checks; record exact source/build/package identities and reconcile them with the deployed candidate. A local digest is not a reviewed main-branch commit. | Owner authorization for merge/source publication where required |
+| M1 — Repeatable release | Build once, retain the artifact, validate staging, obtain exact-candidate Astra review, promote the same bundle, preserve ownership proof/recording assets, verify production and retain rollback identity. No automatic plan upgrade. | M0 |
+| M2 — Private operational visibility | Track request/error/CPU/latency and quota signals; run synthetic MCP discovery/resource/tool checks and send failure alerts to an owner-approved destination. Test delivery. Keep submitted evidence, bodies, credentials and identifying labels out of telemetry. Review provider metadata/retention and policy changes before enabling them. | M0; separate authorization for recurring checks/notifications |
+| M3 — Capacity and abuse validation | On isolated staging, measure representative and maximum supported calls, invalid/oversized requests and shared-client behavior. Record CPU/error/latency and a supported envelope. Validate deployed host/TLS/origin/limiter settings; document approximate per-IP/per-location limits, shared-proxy contention and quota exhaustion. Paid capacity or a new access model is a separate decision. | M0; bounded test scope agreed before traffic generation |
+| M4 — Recovery drill | Restore a previous known-good Worker version on staging, preserve required assets, repeat functional checks and rehearse endpoint shutdown. Record measured recovery time and exact versions. Do not stop production for the drill. | M1 |
+| M5 — Native host pilot | Exercise both tools and the policy resource in actual Codex/plugin-host sessions with sanitized fixtures. Verify missing evidence, alignment, invalid input and operational-action refusal. Record compatibility and feedback; SDK receipts alone do not pass this gate. | M1–M4 |
+| M6 — Directory decision | Refresh package/portal checks for the final candidate and review demonstration suitability. Legal attestations/submission require a new explicit owner decision. External approval and publication remain separate outcomes. | M5; currently on owner hold |
+| M7 — Maintenance | Review dependency/runtime advisories, update pins through normal review, maintain support/privacy pages and track reference-policy changes with replay differences. Internal container maintenance and Worker dependency maintenance stay distinct. | Independent; recurring automation requires separate request |
+
+### Delivery rules
+
+Use **Backlog → Ready → Building → Review → Done**. Record **Delivery stage** separately as Planned, Implemented, Merged, Deployed or Verified: a manually deployed candidate can still be in Review. Done means the issue's own checks passed with dated evidence and remaining limits. Do not narrow acceptance to hide a blocker.
+
+Each issue records owner, milestone, checks, dependencies, next action and blockers. Reviews identify exact revisions or document digests. Later edits invalidate prior verdicts for changed content. Publication, paid upgrades, production access and submission remain distinct decisions.
+
+### MCP scope limits
+
+The delivery Project also contains separate optional Jev research and internal-service maintenance proposals. Their scope and approval gates remain in their own issues; they do not change the model-free first MCP release described here.
+
+The first plugin release stays anonymous, stateless and advisory, with the existing illustrative HTTP-400/rejection policy. No model calls, production connectors, accounts, executable policies, silencing, paging or remediation are planned here. Submitted evidence is not stored; no result caching is introduced. Production reliability remains a roadmap goal, not a current guarantee.
+
+See [MCP operations](mcp/OPERATIONS.md), [MCP review history](mcp/REVIEW.md), [internal-service operations](OPERATIONS.md) and [security boundaries](SECURITY.md).
