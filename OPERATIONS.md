@@ -1,4 +1,6 @@
-# Operations
+# Internal shadow-service operations
+
+This runbook covers the container/Helm deployment only. The anonymous public MCP Worker has separate [operations](mcp/OPERATIONS.md), with no SQLite database, ingestion token or Prometheus connector. See the [roadmap](ROADMAP.md) for planned work.
 
 Alert Lab is a single-replica shadow service. Keep primary paging unchanged. Monitor pod readiness, `storage_write_failed`/`worker_failed` events, PVC capacity and growing unresolved episodes. Logs contain event names and episode IDs, not tokens, queries or evidence. API evidence and the database can still be sensitive; apply cluster storage encryption and restricted access appropriate to your environment.
 

@@ -2,9 +2,19 @@
 
 Version 0.1.x is supported. Report vulnerabilities through this repository's private GitHub Security Advisories reporting feature. Do not post credentials, operational evidence or exploit details in public issues. If private reporting is unavailable, do not post sensitive details publicly.
 
-The service is an internal single-tenant shadow tool. Its bearer token grants both ingestion and reading; its Prometheus identity must have read-only query access. Deployers own TLS termination, network boundaries, credential rotation, storage encryption and backups. Alert payloads cannot configure queries, destinations or actions. No Kubernetes API permissions are needed.
+## Separate deployment boundaries
+
+The container/Helm service is an internal single-tenant shadow tool. Its bearer token grants both ingestion and reading; its Prometheus identity must have read-only query access. Deployers own TLS termination, network boundaries, credential rotation, storage encryption and backups. Alert payloads cannot configure queries, destinations or actions. No Kubernetes API permissions are needed.
+
+Alert Evidence Review is a separate anonymous public Cloudflare Worker. It accepts supplied sanitized evidence for bounded deterministic replay/comparison; it has no private-service connector, ingestion credential or evidence database. Its application does not store evidence or log request/response bodies. Provider operational metadata and chat-platform retention remain separate. Public access and approximate per-IP/per-location rate limits are intentional; they are not authentication or an availability guarantee. See [Worker operations](mcp/OPERATIONS.md) and [its review record](mcp/REVIEW.md).
+
+The browser playground uses synthetic evidence and does not connect to either runtime. The isolated dogfood VM also uses synthetic data, with sandbox-only credentials. Do not infer that container hardening or image scans cover the Worker or browser.
+
+A focused source-only review on 14 November 2026, including Astra, found no confirmed reachable vulnerability in the scoped MCP/shared-evaluator paths. It did not execute target code or probe live endpoints, and did not verify deployed configuration parity, provider retention, adversarial-load resilience or native host rendering/instruction handling. This is not a security certification. Follow-up work is tracked in the [roadmap](ROADMAP.md).
 
 Illustrative policy recommendations do not replace incident response, security investigation or existing paging.
+
+The image/runtime findings below concern the internal container and retain their original assessment dates. They are not a current dependency scan of the public Worker.
 
 ## Initial image scan
 
