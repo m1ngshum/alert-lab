@@ -2,6 +2,8 @@
 
 This lab runs the published v0.1.2 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Everything is synthetic; security/rejection/journey evidence describes only the instrumented self-generated workload, never your Mac or production traffic.
 
+The committed launcher still pins v0.1.2; v0.1.3 is the latest released runtime documented by the root README. A separately upgraded lab does not update these defaults. Track the tested launcher/image/chart alignment in [the roadmap](../../ROADMAP.md); this document describes the committed pins.
+
 ## Host isolation
 
 Use the pinned Lima 2.3.0 **VZ full VM in plain mode** on an Apple Silicon Mac. It has its own Linux kernel, no Mac directory mounts, no forwarded SSH agent, no guest agent, no dynamic port forwarding and no Docker Desktop integration. Tools and VM state use a dedicated private directory; do not change Docker contexts, existing kubeconfigs or shell startup files.
