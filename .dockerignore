@@ -25,6 +25,7 @@
 !runtime/debian.json
 
 !examples/
+!examples/alertmanager-shadow.yml
 !examples/dogfood/
 !examples/dogfood/workload.mjs
 !examples/dogfood/index.html
