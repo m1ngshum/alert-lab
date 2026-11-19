@@ -1,0 +1,33 @@
+# Merge into your existing routing tree; primary is an illustrative webhook.
+route:
+  receiver: existing-primary
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Put the shadow route before existing child routes.
+    - receiver: alert-lab-shadow
+      matchers:
+        - alertname="Api400Spike"
+        - service="example-api"
+      group_by: ['...']
+      continue: true
+    # Keep existing child routes here, in their original order and grouping.
+    # This fallback preserves delivery to the original parent receiver even
+    # when the shadow child matched. Do not duplicate an existing catch-all.
+    - receiver: existing-primary
+
+receivers:
+  - name: existing-primary
+    webhook_configs:
+      - url: http://existing-primary:8080/webhook
+        send_resolved: true
+  - name: alert-lab-shadow
+    webhook_configs:
+      - url: http://alert-lab:8080/v1/webhooks/alertmanager
+        send_resolved: true
+        max_alerts: 0
+        http_config:
+          authorization:
+            credentials_file: /etc/alertmanager/alert-lab.token
