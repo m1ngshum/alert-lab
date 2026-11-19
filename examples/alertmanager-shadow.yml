@@ -1,22 +1,25 @@
-# Merge into your existing routing tree; primary is an illustrative webhook.
+# Wrapper tree: keep the entire original route as the second child below.
+# Primary is an illustrative webhook, not a production paging configuration.
 route:
   receiver: existing-primary
-  group_by: ['alertname']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
   routes:
-    # Put the shadow route before existing child routes.
     - receiver: alert-lab-shadow
       matchers:
         - alertname="Api400Spike"
         - service="example-api"
       group_by: ['...']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
       continue: true
-    # Keep existing child routes here, in their original order and grouping.
-    # This fallback preserves delivery to the original parent receiver even
-    # when the shadow child matched. Do not duplicate an existing catch-all.
+    # Move your entire original root route here, including all its settings
+    # and children. Do not append a fallback inside its original children.
     - receiver: existing-primary
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes: []
 
 receivers:
   - name: existing-primary

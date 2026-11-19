@@ -34,6 +34,26 @@ test('pinned sender delivers 101 firing/resolved identities and preserves primar
   const pinned=JSON.parse(readFileSync(new URL('../examples/images.lock.json',import.meta.url))).alertmanager.version.slice(1);
   const version=spawnSync(binary,['--version'],{encoding:'utf8'});
   assert.equal(version.status,0);assert.ok((version.stdout+version.stderr).includes(`version ${pinned}`));
+  const routingDirectory=mkdtempSync(join(tmpdir(),'alert-route-matching-'));
+  try{
+    const tokenFile=join(routingDirectory,'token');writeFileSync(tokenFile,'synthetic-route-token',{mode:0o600});
+    const template=readFileSync(example,'utf8').replace('/etc/alertmanager/alert-lab.token',tokenFile);
+    const specialist='    - receiver: existing-specialist\n      matchers: [service="example-api", namespace="owned"]\n      continue: true\n';
+    const receivers=template.slice(template.indexOf('\nreceivers:'))+'\n  - name: existing-specialist\n    webhook_configs:\n      - url: http://127.0.0.1:1/unused\n';
+    const original='route:\n  receiver: existing-primary\n  group_by: [alertname]\n  routes:\n'+specialist+receivers;
+    const wrapped=template.slice(0,template.indexOf('\nreceivers:')).replace('      routes: []','      routes:\n'+specialist.split('\n').filter(Boolean).map(line=>'    '+line).join('\n'))+receivers;
+    const originalFile=join(routingDirectory,'original.yml'),wrappedFile=join(routingDirectory,'wrapped.yml');
+    writeFileSync(originalFile,original);writeFileSync(wrappedFile,wrapped);
+    for(const [labels,primary,shadowed] of [
+      [['alertname=Api400Spike','service=example-api','namespace=owned'],'existing-specialist',true],
+      [['alertname=Api400Spike','service=example-api'],'existing-primary',true],
+      [['alertname=OtherAlert','service=example-api','namespace=owned'],'existing-specialist',false],
+      [['alertname=OtherAlert','service=other-api'],'existing-primary',false]
+    ])for(const [file,expected] of [[originalFile,primary],[wrappedFile,(shadowed?'alert-lab-shadow,':'')+primary]]){
+      const matched=spawnSync(amtool,['config','routes','test',`--config.file=${file}`,`--verify.receivers=${expected}`,...labels],{encoding:'utf8'});
+      assert.equal(matched.status,0,matched.stdout+matched.stderr);
+    }
+  }finally{rmSync(routingDirectory,{recursive:true,force:true});}
   for(const bounded of [false,true]){
     const directory=mkdtempSync(join(tmpdir(),'alert-route-')),store=openStore(join(directory,'state.db'));
     const token='synthetic-route-token-'.repeat(3),headers={Authorization:`Bearer ${token}`};
@@ -60,7 +80,7 @@ test('pinned sender delivers 101 firing/resolved identities and preserves primar
         .replace('http://existing-primary:8080/webhook',primaryUrl)
         .replace('http://alert-lab:8080',serviceUrl)
         .replace('/etc/alertmanager/alert-lab.token',tokenFile)
-        .replace('group_wait: 30s','group_wait: 1s').replace('group_interval: 5m','group_interval: 1s');
+        .replaceAll('group_wait: 30s','group_wait: 1s').replaceAll('group_interval: 5m','group_interval: 1s');
       if(!bounded)yaml=yaml.replace("group_by: ['...']","group_by: ['alertname']");
       const file=join(directory,'alertmanager.yml');writeFileSync(file,yaml);
       const checked=spawnSync(amtool,['check-config',file],{encoding:'utf8'});
@@ -87,9 +107,15 @@ test('pinned sender delivers 101 firing/resolved identities and preserves primar
       const expected=source.alerts.map(a=>validateWebhook({...source,alerts:[a]})[0].id).sort();
       if(!bounded){
         await until(()=>shadow.some(b=>b.status===400));
-        assert.equal((await episodes()).length,0);
-        assert.ok(shadow.some(b=>b.body.alerts.length===101&&b.body.truncatedAlerts===0));
+        const rejected=shadow.find(b=>b.status===400&&b.body.alerts.length===101&&b.body.truncatedAlerts===0);
+        assert.ok(rejected);
         await until(()=>/unrecoverable/i.test(logs));
+        process.kill('SIGTERM');await once(process,'exit');process=undefined;
+        // Earlier smaller snapshots may have arrived before the rejected batch.
+        const before=await episodes();assert.ok(before.length<expected.length);
+        assert.ok(before.every(a=>expected.includes(a.id)));
+        assert.equal((await fetch(serviceUrl+'/v1/webhooks/alertmanager',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(rejected.body)})).status,400);
+        assert.deepEqual(await episodes(),before);
         continue;
       }
       await until(async()=>(await episodes()).length===101);
