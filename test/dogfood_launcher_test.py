@@ -4,6 +4,23 @@ from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('lab',Path(__file__).resolve().parents[1]/'examples/dogfood/lab.py');lab=importlib.util.module_from_spec(spec);spec.loader.exec_module(lab)
 class LauncherTests(unittest.TestCase):
+    def test_episodes_uses_existing_route_and_passes_cursor(self):
+        for args,route in [(['episodes'],'/episodes'),(['episodes','--cursor','50'],'/episodes?cursor=50'),(['episodes','--cursor','100'],'/episodes?cursor=100')]:
+            with self.subTest(args=args),patch.object(lab.sys,'argv',['lab.py',*args]),patch.object(lab,'guard'),patch.object(lab,'verify_owned'),patch.object(lab,'kube') as kube:
+                lab.main()
+                self.assertIn(f"8081{route}'",kube.call_args.args[-1])
+    def test_invalid_episode_arguments_fail_before_guest_access(self):
+        from contextlib import redirect_stderr
+        from io import StringIO
+        for args in [['episodes','50'],['episodes','--cursor',''],['episodes','--cursor','9007199254740992'],['episodes','--cursor','50&limit=1'],['status','--cursor','50']]:
+            with self.subTest(args=args),patch.object(lab.sys,'argv',['lab.py',*args]),patch.object(lab,'guard') as guard,redirect_stderr(StringIO()),self.assertRaises(SystemExit) as error:
+                lab.main()
+            self.assertEqual(error.exception.code,2)
+            guard.assert_not_called()
+    def test_episode_transport_failure_is_propagated(self):
+        from subprocess import CalledProcessError
+        with patch.object(lab.sys,'argv',['lab.py','episodes','--cursor','50']),patch.object(lab,'guard'),patch.object(lab,'verify_owned'),patch.object(lab,'kube',side_effect=CalledProcessError(1,['kubectl'])),self.assertRaises(CalledProcessError):
+            lab.main()
     def test_guard_forces_local_rootless_provider(self):
         from subprocess import CompletedProcess
         def read(p):return 'alert-lab-dogfood\nguest\n' if str(p) in ['/etc/alert-lab-dogfood','/etc/alert-lab-vm'] else 'guest\n'
