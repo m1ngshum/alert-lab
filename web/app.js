@@ -43,7 +43,7 @@ import {presets, evaluate} from "./policy.js";
   $('reset').addEventListener('click',()=>load(selected));
   document.querySelectorAll('[data-recheck]').forEach(button=>button.addEventListener('click',()=>{
     const e=read(); rechecks++;
-    if(button.dataset.recheck==='cleared') {e.rate=2;rechecks=0;}
+    if(button.dataset.recheck==='cleared') e.rate=2;
     if(button.dataset.recheck==='worse') {e.success=95;e.latency=1700;}
     assign(e);record('Simulated recheck: '+button.dataset.recheck);
   }));
