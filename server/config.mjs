@@ -1,4 +1,6 @@
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {queryEndpoint} from './prometheus.mjs';
 
 export const fields = ['rate','success','latency','cpu','memory','rejection','downstream','security','consistency','samples','logs','metrics','journeys'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -22,4 +24,15 @@ export function loadConfig(env = process.env) {
   const port = Number(env.PORT ?? 8080);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT.');
   return {config,token,prometheusToken,port,dbPath:env.DB_PATH ?? '/data/alert-lab.db'};
+}
+
+export function evidenceConfigurationId({config, prometheusToken}) {
+  const {selector, prometheus:{url,queries}} = config;
+  // Query order affects which fields can finish within the shared collection timeout.
+  const mappings = Object.entries(queries).map(([field,{query,freshnessQuery,maxAgeSeconds,values}]) =>
+    [field,query,freshnessQuery,maxAgeSeconds,values]);
+  const material = {selector, endpoint:queryEndpoint(url).href, mappings, prometheusToken:prometheusToken || null};
+  const canonical = JSON.stringify(material, (_key, value) =>
+    object(value) ? Object.fromEntries(Object.keys(value).sort().map(key => [key,value[key]])) : value);
+  return createHash('sha256').update(canonical).digest('hex');
 }

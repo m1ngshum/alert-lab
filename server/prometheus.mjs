@@ -1,12 +1,16 @@
 const booleans = new Set(['samples','logs','metrics','journeys']);
 const enums = {rejection:['expected','unexpected','unknown'],downstream:['healthy','strained','outage','unknown'],security:['none','suspicious','confirmed','unknown'],consistency:['consistent','conflicting']};
+export function queryEndpoint(source) {
+  const url = new URL(source.endsWith('/') ? source : source+'/');
+  url.pathname = url.pathname.replace(/\/$/,'') + '/api/v1/query';
+  return url;
+}
 export async function collect(config, token, rechecks, {fetchImpl=fetch, now=Date.now()} = {}) {
   const evidence = {rechecks, classifier:'normal', rejection:'unknown', downstream:'unknown',security:'unknown',consistency:'conflicting',samples:false,logs:false,metrics:false,journeys:false};
   const errors = [];
   const budget = AbortSignal.timeout(30000);
   async function query(expression) {
-    const url = new URL(config.url.endsWith('/') ? config.url : config.url+'/');
-    url.pathname = url.pathname.replace(/\/$/,'') + '/api/v1/query';
+    const url = queryEndpoint(config.url);
     url.searchParams.set('query',expression); url.searchParams.set('time',String(now/1000));url.searchParams.set('timeout','5s');
     const response = await fetchImpl(url,{headers:token?{Authorization:`Bearer ${token}`}:{},redirect:'error',signal:AbortSignal.any([budget,AbortSignal.timeout(6000)])});
     if (!response.ok) throw new Error('query failed');

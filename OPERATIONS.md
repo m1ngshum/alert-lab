@@ -20,11 +20,19 @@ Store the backup securely off the PVC and remove the on-volume copy after verify
 
 Stop ingestion and scale the deployment to zero. Preserve the current database and its `-wal`/`-shm` files for rollback. Restore the verified backup as `/data/alert-lab.db` using an administrative maintenance pod mounting the same PVC; ensure UID/GID 1000 ownership and mode 0600. Do not retain WAL/SHM files from the replaced database. Start one replica and verify readiness and episode history before restoring webhook delivery. Due rechecks resume from persisted state.
 
-The schema is versioned. The service rejects databases from a newer schema rather than downgrading them. Version 0.1.0 creates schema 1; it contains no upgrade migration from other products.
+The service rejects newer database schemas. The evidence configuration guard upgrades schema 1 to schema 2 after all source episodes are resolved. This preserves episode IDs, decisions, and replay. Back up schema 1 before upgrading so you can restore it if you need an older image.
 
 ## Upgrade, rollback and uninstall
 
 Back up first. Review image digest, chart diff, policy version and schema compatibility. `Recreate` deliberately allows downtime so two replicas cannot share SQLite. Alertmanager retries must remain enabled. A rollback requires a compatible database schema or restoration of a pre-upgrade backup.
+
+Before upgrading from schema 1 or changing the alert selector, Prometheus URL, query mappings, or Prometheus credential, let the original deployment receive source resolutions for every firing episode. An episode may still be firing after its last policy decision. Check `source_status` on all pages of `GET /v1/episodes` and keep resolution delivery enabled.
+
+Once drained, pause delivery at the receiver boundary while keeping Alertmanager retries enabled. Confirm there are still no firing episodes and verify a final schema-1 backup before switching images. After a Prometheus Secret value change, explicitly restart the replica and verify readiness before resuming delivery. The process reads the Secret at startup.
+
+If startup reports a configuration conflict, restore the previous configuration and credential so the service can resume. A schema-1 refusal leaves the database at schema 1, so redeploying the previous image with its original configuration can resume on the same PVC. Resolve the firing episodes and retry the change. If the source cannot send resolutions, retain the old database for history and start the new configuration on a separate PVC.
+
+After a successful schema-2 cutover, rolling back to a schema-1 image requires restoring the final schema-1 backup. Preserve the schema-2 database for history and reconcile source events accepted after that backup before resuming collection on the old deployment.
 
 Helm retains chart-created PVCs on uninstall. Do not delete a retained PVC until its history is backed up or intentionally discarded. Reinstall using `persistence.existingClaim` to reuse it. Scaling above one replica is unsupported and rejected by the chart.
 

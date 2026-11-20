@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {evaluate} from '../web/policy.js';
 
 const labelsToKeep = ['alertname','service','namespace','severity'];
+export class EvidenceConfigurationError extends Error {}
 export function validateWebhook(body) {
   if (!body || body.version!=='4' || !Array.isArray(body.alerts) || body.alerts.length<1 || body.alerts.length>100 || !Number.isInteger(body.truncatedAlerts ?? 0) || (body.truncatedAlerts ?? 0)!==0) throw new Error('Expected a complete Alertmanager v4 batch of 1–100 alerts.');
   return body.alerts.map(alert => {
@@ -15,14 +16,34 @@ export function validateWebhook(body) {
 export function openStore(path) {
   const db=new Database(path);
   db.pragma('journal_mode = WAL');db.pragma('synchronous = FULL');db.pragma('foreign_keys = ON');db.pragma('busy_timeout = 5000');
-  if (db.pragma('user_version',{simple:true})>1) {db.close();throw new Error('Unsupported database version.');}
+  const schema = db.pragma('user_version',{simple:true});
+  if (schema>2) {db.close();throw new Error('Unsupported database version.');}
   db.exec(`CREATE TABLE IF NOT EXISTS episodes (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,starts_at TEXT NOT NULL,labels TEXT NOT NULL,source_status TEXT NOT NULL,generation INTEGER NOT NULL DEFAULT 1,rechecks INTEGER NOT NULL DEFAULT 0,next_due INTEGER,completed_at INTEGER);
     CREATE TABLE IF NOT EXISTS decisions (seq INTEGER PRIMARY KEY AUTOINCREMENT,episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,generation INTEGER NOT NULL,rechecks INTEGER NOT NULL,evidence TEXT NOT NULL,decision TEXT NOT NULL,errors TEXT NOT NULL,created_at INTEGER NOT NULL,UNIQUE(episode_id,generation,rechecks));
     CREATE INDEX IF NOT EXISTS due ON episodes(next_due);
-    CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER); INSERT OR IGNORE INTO health VALUES (1,0); PRAGMA user_version=1;`);
+    CREATE TABLE IF NOT EXISTS health (id INTEGER PRIMARY KEY CHECK(id=1),value INTEGER); INSERT OR IGNORE INTO health VALUES (1,0);`);
+  if (schema===0) db.pragma('user_version=1');
   const get=db.prepare('SELECT * FROM episodes WHERE id=?');
   return {
     db,
+    bindEvidenceConfiguration(id) {
+      db.transaction(() => {
+        const version=db.pragma('user_version',{simple:true});
+        const firing=db.prepare("SELECT 1 FROM episodes WHERE source_status='firing' LIMIT 1").get();
+        if (version===1) {
+          if (firing) throw new EvidenceConfigurationError('Resolve all firing episodes with the previous version and original configuration before upgrading. See OPERATIONS.md.');
+          db.exec("CREATE TABLE evidence_configuration (singleton INTEGER PRIMARY KEY CHECK(singleton=1), digest TEXT NOT NULL)");
+          db.prepare('INSERT INTO evidence_configuration VALUES (1,?)').run(id);
+          db.pragma('user_version=2');
+          return;
+        }
+        const current=db.prepare('SELECT digest FROM evidence_configuration WHERE singleton=1').get();
+        if (!current) throw new Error('Missing evidence configuration identity.');
+        if (current.digest===id) return;
+        if (firing) throw new EvidenceConfigurationError('Restore the previous evidence configuration and resolve all firing episodes before applying changes. See OPERATIONS.md.');
+        db.prepare('UPDATE evidence_configuration SET digest=? WHERE singleton=1').run(id);
+      }).immediate();
+    },
     ingest: db.transaction((alerts,selector,now) => {
       let accepted=0,duplicates=0,ignored=0;
       // Resolve first so an atomic mixed batch can free capacity before admission.
