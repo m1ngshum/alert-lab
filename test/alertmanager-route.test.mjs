@@ -121,9 +121,20 @@ test('pinned sender delivers 101 firing/resolved identities and preserves primar
       await until(async()=>(await episodes()).length===101);
       const firing=await episodes();assert.deepEqual(firing.map(a=>a.id).sort(),expected);
       assert.ok(firing.every(a=>a.source_status==='firing'));assert.ok(shadow.some(b=>b.status===503));
+      const firstResolutionDelivery=primary.length;
       const end=new Date(Date.now()-100).toISOString();await post([...alerts,unrelated].map(a=>({...a,endsAt:end})));
       await until(async()=>(await episodes()).every(a=>a.source_status==='resolved'));
-      await until(()=>primary.some(b=>b.alerts.length===101&&b.status==='resolved')&&primary.some(b=>b.alerts.length===1&&b.alerts[0].labels.alertname==='OtherAlert'&&b.status==='resolved'));
+      await until(()=>{
+        const deliveries=primary.slice(firstResolutionDelivery);
+        const selected=deliveries.filter(batch=>batch.groupLabels.alertname==='Api400Spike');
+        const resolvedIds=new Set(selected.flatMap(batch=>batch.alerts
+          .filter(alert=>alert.status==='resolved')
+          .map(alert=>validateWebhook({...batch,alerts:[alert]})[0].id)));
+        assert.ok(selected.every(batch=>batch.groupKey===source.groupKey));
+        assert.ok([...resolvedIds].every(id=>expected.includes(id)));
+        return resolvedIds.size===expected.length&&selected.at(-1)?.status==='resolved'
+          &&deliveries.some(batch=>batch.alerts.length===1&&batch.alerts[0].labels.alertname==='OtherAlert'&&batch.status==='resolved');
+      });
       const resolved=await episodes();assert.deepEqual(resolved.map(a=>a.id).sort(),expected);
       assert.equal(resolved.length,101);assert.ok(resolved.every(a=>a.source_status==='resolved'));
       assert.ok(shadow.every(b=>b.body.alerts.length===1&&b.body.truncatedAlerts===0));
