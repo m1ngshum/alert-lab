@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -22,6 +23,74 @@ test('config rejects arbitrary destinations and malformed mappings',()=>{
 });
 test('validate whole webhook, reject truncation and malformed identities',()=>{
   for(const b of [null,batch(),{...batch(alert()),truncatedAlerts:1},batch(alert(),{...alert(),fingerprint:'bad'}),batch({...alert(),labels:null})])assert.throws(()=>validateWebhook(b));
+});
+test('precise timestamp identity and legacy history survive service restarts',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'alert-timestamp-')),path=join(dir,'state.db');
+  const token='synthetic-timestamp-test-token-'.repeat(2);
+  let store=openStore(path),server,base;
+  const identity=evidenceConfigurationId({config});
+  const start=async()=>{
+    store.bindEvidenceConfiguration(identity);
+    server=makeServer({store,config,token});
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    base='http://127.0.0.1:'+server.address().port;
+  };
+  const stop=async()=>{
+    if(server){await new Promise(resolve=>server.close(resolve));server=null;}
+  };
+  const get=path=>fetch(base+'/v1/episodes'+path,{headers:{Authorization:'Bearer '+token}});
+  const post=(...rows)=>fetch(base+'/v1/webhooks/alertmanager',{method:'POST',
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(batch(...rows))});
+  const at=(startsAt,status='firing',fingerprint=alert().fingerprint)=>({...alert(status,fingerprint),startsAt});
+  const legacy=at('2026-11-06T00:00:00.124Z');
+  const legacyId=createHash('sha256').update(legacy.fingerprint+'\n'+legacy.startsAt).digest('hex');
+  try {
+    // Recreate the schema-2 writer's millisecond row and configuration metadata.
+    store.bindEvidenceConfiguration(identity);
+    store.db.pragma('user_version=2');
+    assert.equal(normalized(legacy)[0].id,legacyId);
+    store.ingest([{...normalized(legacy)[0],startsAt:legacy.startsAt}],config.selector,1);
+    store.complete(store.due(1),{evidence:presets[0].data,errors:[]},1);
+    const schema=store.db.prepare('SELECT * FROM sqlite_schema').all();
+    await assert.rejects(start(),{message:/Resolve all firing episodes/});
+    assert.equal(store.db.pragma('user_version',{simple:true}),2);
+    store.ingest(normalized({...legacy,status:'resolved'}),config.selector,2);
+    const history=store.detail(legacyId);
+    await start();
+    assert.equal(store.db.pragma('user_version',{simple:true}),3);
+    assert.deepEqual(store.db.prepare('SELECT * FROM sqlite_schema').all(),schema);
+    assert.deepEqual(store.detail(legacyId),history);
+    assert.equal((await (await post(legacy)).json()).duplicates,1);
+    const early=at('2026-11-06T00:00:00.123100001Z','resolved');
+    const late=at('2026-11-06T00:00:00.123900001Z');
+    const oneNanosecondLater=at('2026-11-06T00:00:00.123900002Z');
+    const aligned=at('2026-11-06T00:00:00.123Z');
+    assert.equal((await (await post(aligned,early,late,oneNanosecondLater)).json()).accepted,4);
+    assert.equal((await (await post({...aligned,startsAt:'2026-11-05T18:30:00.123000000-05:30'})).json()).duplicates,1);
+    assert.equal((await (await post({...late,startsAt:'2026-11-06T08:00:00.123900001+08:00'})).json()).duplicates,1);
+    assert.equal((await (await post(late)).json()).duplicates,1);
+    const conflicting=at('2026-11-06T00:00:00.124100001Z','resolved');
+    const independent=at('2026-11-06T00:00:00.125100001Z','resolved');
+    assert.equal((await post(independent,conflicting)).status,409);
+    assert.equal((await get('/'+normalized(independent)[0].id)).status,404);
+    for (const bad of ['2026-02-30T00:00:00Z','2026-11-06T00:00:00.1230000001Z','2026-11-06T00:00:00','2026-11-06T00:00:00Z\n']) {
+      assert.equal((await post(independent,at(bad))).status,400);
+    }
+    await stop();store.close();store=openStore(path);await start();
+    assert.equal(store.db.pragma('user_version',{simple:true}),3);
+    const list=await (await get('')).json();
+    assert.deepEqual(list.items.map(row=>row.starts_at),[
+      legacy.startsAt,early.startsAt,'2026-11-06T00:00:00.123000000Z',late.startsAt,oneNanosecondLater.startsAt,
+    ]);
+    assert.equal(list.items[0].id,legacyId);
+    assert.equal(list.items[0].source_status,'resolved');
+    assert.equal(list.items[3].source_status,'firing');
+    assert.equal((await (await get('/'+normalized(late)[0].id)).json()).starts_at,late.startsAt);
+    assert.equal(replay(await (await get('/'+legacyId+'/replay')).json()).totals.failed,0);
+    assert.equal((await (await post({...legacy,status:'resolved'})).json()).duplicates,1);
+    assert.equal((await post(conflicting)).status,409);
+    assert.equal((await (await post(independent)).json()).accepted,1);
+  } finally {await stop();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('retained database refuses an evidence configuration change while an episode is firing',()=>{
   const dir=mkdtempSync(join(tmpdir(),'alert-config-')),path=join(dir,'state.db');
@@ -47,7 +116,7 @@ test('retained database refuses an evidence configuration change while an episod
     const history=store.detail(active);
     restart();
     store.bindEvidenceConfiguration(id);
-    assert.equal(store.db.pragma('user_version',{simple:true}),2);
+    assert.equal(store.db.pragma('user_version',{simple:true}),3);
     assert.deepEqual(store.detail(active),history);
     const another='1111111111111111';
     store.ingest(normalized(alert('firing',another)),config.selector,1002);

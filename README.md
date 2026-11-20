@@ -114,6 +114,8 @@ All `/v1/` endpoints require `Authorization: Bearer <token>`:
 
 Episodes are identified by fingerprint plus normalized start time from a single trusted Alertmanager source. Retries do not duplicate episodes or reset deadlines. Observation rechecks after five minutes; two persistent rechecks end observation and recommend review. Other outcomes await a new source episode. Due work resumes after restart; stale in-flight work cannot overwrite source resolution.
 
+Start times must include a UTC designator or numeric offset and may contain up to nine fractional digits. Equivalent UTC instants deduplicate. Existing millisecond episode IDs, links, and replay remain valid. If a finer-precision delivery overlaps an older row with the same fingerprint and millisecond, the receiver returns HTTP 409 and commits none of that batch. Drain all firing episodes before the schema-3 upgrade. See the [upgrade and rollback procedure](OPERATIONS.md#upgrade-rollback-and-uninstall) and [legacy timestamp reconciliation](OPERATIONS.md#legacy-timestamp-conflicts).
+
 Resolved source events cancel rechecks and are retained independently of policy conclusions. They do not prove health. Completed source-resolved episodes are deleted after seven days. Unresolved episodes are retained, with a limit of 1,000 open episodes and backpressure at capacity. Only allowlisted labels (`alertname`, `service`, `namespace`, `severity`), normalized evidence and decisions are stored. Raw annotations/logs/credentials are omitted.
 
 ## Local Kubernetes verification
