@@ -129,6 +129,50 @@
         "url": "https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl",
         "sha256": "65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
       }
+    },
+    "alertmanager": {
+      "linux-amd64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-amd64.tar.gz",
+        "sha256": "17ee14acd0f6ba6e25a436ff223d9c17ddd5cf484f543ad12f0932eaa89ba186"
+      },
+      "linux-arm64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-arm64.tar.gz",
+        "sha256": "5aaad82e3d167c30c06ce7d38677d2892a6f66f4c3613ea17af7481750fdd0b0"
+      },
+      "darwin-amd64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.darwin-amd64.tar.gz",
+        "sha256": "fa5a50303c58771c261fcbed4cf5f9a852cf2c6064942adbd92c6859c65c5f93"
+      },
+      "darwin-arm64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.darwin-arm64.tar.gz",
+        "sha256": "dc1fcd4ad3e8bef111683eaf385aa5b2b02493277bca9126c129e0a39fc68a4f"
+      }
+    },
+    "amtool": {
+      "linux-amd64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-amd64.tar.gz",
+        "sha256": "17ee14acd0f6ba6e25a436ff223d9c17ddd5cf484f543ad12f0932eaa89ba186"
+      },
+      "linux-arm64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-arm64.tar.gz",
+        "sha256": "5aaad82e3d167c30c06ce7d38677d2892a6f66f4c3613ea17af7481750fdd0b0"
+      },
+      "darwin-amd64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.darwin-amd64.tar.gz",
+        "sha256": "fa5a50303c58771c261fcbed4cf5f9a852cf2c6064942adbd92c6859c65c5f93"
+      },
+      "darwin-arm64": {
+        "version": "v0.34.2",
+        "url": "https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.darwin-arm64.tar.gz",
+        "sha256": "dc1fcd4ad3e8bef111683eaf385aa5b2b02493277bca9126c129e0a39fc68a4f"
+      }
     }
   },
   "npm": "12.2.2",

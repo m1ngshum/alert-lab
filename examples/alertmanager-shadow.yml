@@ -1,0 +1,37 @@
+# Wrapper tree: keep the entire original route as the second child below.
+# Primary is an illustrative webhook, not a production paging configuration.
+# The wrapper changes primary group keys. See README.md before reloading.
+route:
+  receiver: existing-primary
+  routes:
+    - receiver: alert-lab-shadow
+      matchers:
+        - alertname="Api400Spike"
+        - service="example-api"
+      group_by: ['...']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      continue: true
+    # Move your entire original root route here, including all its settings
+    # and children. Do not append a fallback inside its original children.
+    - receiver: existing-primary
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes: []
+
+receivers:
+  - name: existing-primary
+    webhook_configs:
+      - url: http://existing-primary:8080/webhook
+        send_resolved: true
+  - name: alert-lab-shadow
+    webhook_configs:
+      - url: http://alert-lab:8080/v1/webhooks/alertmanager
+        send_resolved: true
+        max_alerts: 0
+        http_config:
+          authorization:
+            credentials_file: /etc/alertmanager/alert-lab.token
