@@ -122,7 +122,15 @@ def up():
     print('Lab ready. Run: lab.py tunnel; lab.py token. Real five-minute rechecks; spike for >=10 minutes.')
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['up','status','down','stop','tunnel','token','scenario','episodes','replay','restart']);parser.add_argument('value',nargs='?');parser.add_argument('--destroy',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['up','status','down','stop','tunnel','token','scenario','episodes','replay','restart']);parser.add_argument('value',nargs='?');parser.add_argument('--destroy',action='store_true')
+    parser.add_argument('--cursor',help='nextCursor from the previous episodes page')
+    args=parser.parse_args()
+    if args.action=='episodes' and args.value is not None:
+        parser.error('episodes accepts a continuation only through --cursor')
+    if args.cursor is not None:
+        if args.action!='episodes':parser.error('--cursor requires episodes')
+        if not re.fullmatch('[0-9]{1,16}',args.cursor) or int(args.cursor)>9007199254740991:
+            parser.error('--cursor must be a nonnegative safe integer')
     guard()
     if args.action=='up':return up()
     verify_owned()
@@ -137,6 +145,7 @@ def main():
     if args.action=='scenario' and args.value not in ['baseline','spike','recovery']:raise RuntimeError('Choose baseline, spike or recovery')
     if args.action=='replay' and not re.fullmatch('[a-f0-9]{64}',args.value or ''):raise RuntimeError('Replay needs a hexadecimal episode ID')
     route='/scenario/'+args.value if args.action=='scenario' else '/episodes/'+args.value+'/replay' if args.action=='replay' else '/episodes'
+    if args.cursor is not None:route+='?cursor='+args.cursor
     code="const fs=require('node:fs');fetch('http://127.0.0.1:8081"+route+"',{method:'"+('POST' if args.action=='scenario' else 'GET')+"',headers:{Authorization:'Bearer '+fs.readFileSync('/auth/token','utf8').trim()}}).then(async r=>{console.log(await r.text());if(!r.ok)process.exitCode=1})"
     kube('exec','deployment/workload','--','node','-e',code)
 if __name__=='__main__':
