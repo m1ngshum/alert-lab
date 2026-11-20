@@ -2,7 +2,7 @@
 
 This lab runs the published v0.1.2 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Everything is synthetic; security/rejection/journey evidence describes only the instrumented self-generated workload, never your Mac or production traffic.
 
-The committed launcher still pins v0.1.2; v0.1.3 is the latest released runtime documented by the root README. A separately upgraded lab does not update these defaults. Track the tested launcher/image/chart alignment in [the roadmap](../../ROADMAP.md); this document describes the committed pins.
+The committed launcher still pins v0.1.2. See the [runtime releases](https://github.com/m1ngshum/alert-lab/releases) for published versions. A separately upgraded lab does not update these defaults. Track the tested launcher/image/chart alignment in [the roadmap](../../ROADMAP.md); this document describes the committed pins.
 
 ## Host isolation
 

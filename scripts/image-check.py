@@ -48,6 +48,8 @@ for(const directory of ['/usr/lib','/lib']) {
   assert.ok(!readdirSync(directory,{recursive:true}).some(n=>/(^|\/)libz\.so/.test(n)));
 }
 const D=require('better-sqlite3');let db=new D('/tmp/check.db');
+assert.equal(require('better-sqlite3/package.json').version,'13.2.0');
+assert.equal(db.prepare('SELECT sqlite_version() AS version').get().version,'3.54.1');
 db.exec('CREATE TABLE check_data (value TEXT); INSERT INTO check_data VALUES (\'durable\')');
 await db.backup('/tmp/backup.db');db.close();db=new D('/tmp/backup.db',{readonly:true});
 assert.equal(db.prepare('SELECT value FROM check_data').get().value,'durable');db.close();
