@@ -4,7 +4,9 @@ import argparse,hashlib,json,os,platform,pwd,re,secrets,subprocess,sys,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 NAME='alert-lab-dogfood'
-IMAGE='ghcr.io/m1ngshum/alert-lab@sha256:aad5f89aeb6aa742bdc7fc44a81c4cdc84169621427528cbcbe3131e5691d9f0'
+IMAGE='ghcr.io/m1ngshum/alert-lab@sha256:1fd2e284e225a2c02d5ba8cfd7f325965ee23e11133e51b0eb3b0c2061114778'
+CHART_VERSION='0.1.3'
+CHART_SHA256='b352ed6a843aa4f204d85edd1fa697fa7ee58af990e46db068d95a35e30134b3'
 STATE=Path.home()/'.local/share'/NAME
 NS=NAME
 
@@ -88,6 +90,9 @@ def up():
     (STATE/'kubeconfig').chmod(0o600)
     verify_owned()
     wait_ready()
+    run(['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version',CHART_VERSION,'--destination',str(STATE)])
+    chart=STATE/f'alert-lab-{CHART_VERSION}.tgz'
+    if hashlib.sha256(chart.read_bytes()).hexdigest()!=CHART_SHA256:raise RuntimeError('Published chart checksum mismatch')
     token=STATE/'token'
     if not token.exists():
         fd=os.open(token,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
@@ -113,9 +118,6 @@ def up():
         if field in categories:queries[field]['values']=categories[field]
     values={'credentials':{'existingSecret':'auth'},'image':{'repository':'ghcr.io/m1ngshum/alert-lab','digest':IMAGE.split('@')[1]},'config':{'selector':{'alertname':'AlertLabDogfood','service':'synthetic'},'prometheus':{'url':'http://prometheus:9090','queries':queries}}}
     path=STATE/'values.json';path.write_text(json.dumps(values))
-    run(['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version','0.1.2','--destination',str(STATE)])
-    chart=STATE/'alert-lab-0.1.2.tgz'
-    if hashlib.sha256(chart.read_bytes()).hexdigest()!='8d21c15ece7ce3671d9a14b8afdd8f57f3ca1c3b4a762b615dac6342e88d3dce':raise RuntimeError('Published chart checksum mismatch')
     run(['helm','upgrade','--install','alert-lab',str(chart),'--kubeconfig',str(STATE/'kubeconfig'),'--kube-context','kind-'+NAME,'-n',NS,'-f',str(path),'--wait','--timeout','240s'])
     for name,_,_,_,_ in components:kube('rollout','status','deployment/'+name,'--timeout=180s')
     wait_service()
