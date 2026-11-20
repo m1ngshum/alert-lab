@@ -9,6 +9,17 @@ Status reviewed 15 November 2026. This roadmap separates delivered behavior from
 - Isolated full-VM dogfood UI: timeline/countdown, one-click exercise, history, side-by-side changes and numeric deltas, JSON/Markdown/ZIP reports. The committed launcher still pins v0.1.2; a separately upgraded local lab does not change that default.
 - Homepage links to the public playground. No production alert-accuracy or paging-reduction claim is established.
 
+## Shadow-service reliability
+
+Proposed on 19 November 2026. Prioritize these checks before expanding the runtime classifier. Use synthetic data and keep the existing paging route active.
+
+- **Configuration changes.** Restart on a retained database with a changed selector or Prometheus mapping. Every pending decision must use evidence from the service that admitted the episode, or collection must stop with a documented recovery path. Verify that existing episodes can still receive their source resolution and that old replay links work.
+- **Grouped delivery.** Exercise the documented shadow route with the supported Alertmanager version. Send a group at the receiver limit and another above it. Demonstrate a configuration that records every expected firing and resolution, preserves the primary receiver’s grouping, and makes unsupported deliveries visible to the operator.
+
+### Developer experiment
+
+Pair one Prometheus rule test with four HTTP-400 replay cases covering expected rejection, broken client journeys, stale evidence and suspicious activity. Ask three developers to choose a follow-up with the rule result and runbook, and with replay added. Vary which version they see first. Continue only if at least two correct a missed follow-up or identify a missed evidence gap and everyone preserves the security and stale-evidence follow-ups. Stop after one pilot if the added evidence does not meet that bar.
+
 ## Next: optional decision model
 
 Selected direction: **Jev through OpenRouter, off by default**, used at the existing classifier gate to help recommendations. This is planned, not implemented. The current UI classifier is simulated and the runtime performs no inference.
