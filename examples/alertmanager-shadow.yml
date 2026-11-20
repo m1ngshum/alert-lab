@@ -1,5 +1,6 @@
 # Wrapper tree: keep the entire original route as the second child below.
 # Primary is an illustrative webhook, not a production paging configuration.
+# The wrapper changes primary group keys. See README.md before reloading.
 route:
   receiver: existing-primary
   routes:
