@@ -6,7 +6,7 @@ Status reviewed 15 November 2026. This roadmap separates delivered behavior from
 
 - Public synthetic browser-local playground with five scenarios, deterministic policy, JSON import and replay/export; CLI shares the policy and replay schema.
 - Released v0.1.3 Alertmanager/Prometheus shadow service, SQLite durability, bounded five-minute rechecks, container and Helm artifacts for Linux amd64/arm64. Residual image findings are disclosed in SECURITY.md; it is not a zero-vulnerability release.
-- Isolated full-VM dogfood UI: timeline/countdown, one-click exercise, history, side-by-side changes and numeric deltas, JSON/Markdown/ZIP reports. The committed launcher still pins v0.1.2; a separately upgraded local lab does not change that default.
+- Isolated full-VM dogfood UI: timeline/countdown, one-click exercise, history, side-by-side changes and numeric deltas, JSON/Markdown/ZIP reports. The launcher pins the published v0.1.3 chart and image.
 - Homepage links to the public playground. No production alert-accuracy or paging-reduction claim is established.
 
 ## Next: optional decision model
@@ -20,7 +20,6 @@ Selected direction: **Jev through OpenRouter, off by default**, used at the exis
 
 ## Parallel follow-ups
 
-- Reconcile the committed dogfood launcher/README/chart/image pins with v0.1.3 in a separate tested change; do not silently substitute a local upgrade for a repository default.
 - Review the open base-image update with fresh, unsuppressed scans and both-architecture validation. Previously dated vulnerability counts are not a current scan.
 - Reconcile the separate uncommitted Alert Evidence Review MCP/plugin implementation before source publication. Its recorded deployment and unsubmitted directory status are detailed in the [public MCP track](#public-mcp-track) below; it is separate from the internal Jev proposal.
 - After a useful synthetic model evaluation, prepare a short demo and reproducible engineering post. Never claim measured incident improvement without labeled historical/shadow evaluation. External posts need explicit authorization.

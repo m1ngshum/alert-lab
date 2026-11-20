@@ -61,4 +61,32 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse(p['automountServiceAccountToken']);self.assertTrue(p['securityContext']['runAsNonRoot'])
         self.assertFalse(any('hostPath' in v for v in p['volumes']));self.assertNotIn('hostNetwork',p)
         c=p['containers'][0];self.assertTrue(c['securityContext']['readOnlyRootFilesystem']);self.assertFalse(c['securityContext']['allowPrivilegeEscalation'])
+    def test_up_reuses_published_chart_and_image_on_second_run(self):
+        archive=b'fixture chart'
+        with tempfile.TemporaryDirectory() as d,patch.object(lab,'STATE',Path(d)),patch.object(lab,'verify_owned'),patch.object(lab,'wait_ready'),patch.object(lab,'wait_service'),patch.object(lab,'apply') as apply,patch.object(lab,'kube'):
+            def run(args,**kwargs):
+                if args[:2]==['helm','pull']:
+                    (Path(d)/'alert-lab-0.1.3.tgz').write_bytes(archive)
+                return SimpleNamespace(stdout=lab.NAME+'\n')
+            (Path(d)/'kubeconfig').touch()
+            with patch.object(lab,'run',side_effect=run) as command,patch.object(lab,'CHART_SHA256',hashlib.sha256(archive).hexdigest()):
+                lab.up()
+                token=(Path(d)/'token').read_text()
+                lab.up()
+            self.assertEqual((Path(d)/'token').read_text(),token)
+            pulls=[call.args[0] for call in command.call_args_list if call.args[0][:2]==['helm','pull']]
+            self.assertEqual(pulls,[['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version','0.1.3','--destination',d]]*2)
+            upgrades=[call.args[0][4] for call in command.call_args_list if call.args[0][:2]==['helm','upgrade']]
+            self.assertEqual(upgrades,[str(Path(d)/'alert-lab-0.1.3.tgz')]*2)
+            image='ghcr.io/m1ngshum/alert-lab@sha256:1fd2e284e225a2c02d5ba8cfd7f325965ee23e11133e51b0eb3b0c2061114778'
+            workloads=[call.args[0] for call in apply.call_args_list if call.args[0]['kind']=='Deployment' and call.args[0]['metadata']['name']=='workload']
+            self.assertEqual([workload['spec']['template']['spec']['containers'][0]['image'] for workload in workloads],[image]*2)
+            self.assertEqual(json.loads((Path(d)/'values.json').read_text())['image']['digest'],image.split('@')[1])
+    def test_up_rejects_bad_chart_before_applying_fixture(self):
+        with tempfile.TemporaryDirectory() as d,patch.object(lab,'STATE',Path(d)),patch.object(lab,'verify_owned'),patch.object(lab,'wait_ready'),patch.object(lab,'apply') as apply,patch.object(lab,'run',return_value=SimpleNamespace(stdout=lab.NAME+'\n')):
+            (Path(d)/'kubeconfig').touch()
+            (Path(d)/'alert-lab-0.1.3.tgz').write_bytes(b'wrong chart')
+            with self.assertRaisesRegex(RuntimeError,'Published chart checksum mismatch'):
+                lab.up()
+            apply.assert_not_called()
 if __name__=='__main__':unittest.main()

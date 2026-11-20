@@ -1,8 +1,6 @@
 # Persistent isolated full-VM lab
 
-This lab runs the published v0.1.2 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Everything is synthetic; security/rejection/journey evidence describes only the instrumented self-generated workload, never your Mac or production traffic.
-
-The committed launcher still pins v0.1.2; v0.1.3 is the latest released runtime documented by the root README. A separately upgraded lab does not update these defaults. Track the tested launcher/image/chart alignment in [the roadmap](../../ROADMAP.md); this document describes the committed pins.
+This lab runs the published v0.1.3 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Evidence comes from the lab's synthetic workload.
 
 ## Host isolation
 
@@ -56,7 +54,6 @@ python3 examples/dogfood/lab.py scenario spike
 python3 examples/dogfood/lab.py episodes
 # Keep the spike active for at least ten minutes to see two real persisted rechecks.
 python3 examples/dogfood/lab.py restart
-python3 examples/dogfood/lab.py up  # Helm upgrade; keeps token, PVC and history
 python3 examples/dogfood/lab.py scenario recovery
 python3 examples/dogfood/lab.py replay EPISODE_ID > replay.json
 ```
@@ -66,7 +63,7 @@ Replay the exported evidence inside the pinned container without installing Node
 ```sh
 podman run --rm --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
   -v "$PWD/replay.json:/replay.json:ro" \
-  ghcr.io/m1ngshum/alert-lab@sha256:aad5f89aeb6aa742bdc7fc44a81c4cdc84169621427528cbcbe3131e5691d9f0 \
+  ghcr.io/m1ngshum/alert-lab@sha256:1fd2e284e225a2c02d5ba8cfd7f325965ee23e11133e51b0eb3b0c2061114778 \
   node bin/replay.mjs /replay.json
 ```
 
@@ -97,6 +94,8 @@ Use **Compare latest two episodes** in history for side-by-side evidence and rec
 Download **Evidence JSON** (importable into the playground), **Report JSON** or **Report Markdown**. Replay runs locally using the shared policy and never schedules work. Requests are serialized. Token changes and failed requests clear stale reports; failures pause auto-refresh until you retry and enable it again. Episodes without decisions show a waiting message. Polling pauses in hidden tabs, so a visible page may show updates a few seconds after the service records them. The last-update time indicates freshness; it is not an evidence timestamp. Reloading clears the token. Updating fixture assets rolls the workload back to baseline while retaining service history and its PVC; reconnect the guest tunnel after that rollout.
 
 ## Stop, resume and destruction
+
+Before the first v0.1.2-to-v0.1.3 upgrade, finish the exercise, recover the workload, and wait for the episode's source status to show resolved. Run `python3 examples/dogfood/lab.py up` to upgrade. The first upgrade replaces the workload pod and starts it on baseline. The launcher keeps the token, PVC, and episode history.
 
 `lab.py stop` stops the owned kind node and preserves data; `lab.py up` starts it and reapplies the chart. From the Mac, `limactl stop alert-lab-dogfood` stops only this VM and preserves its disk. Resume with `limactl start alert-lab-dogfood`, enter the guest and run `lab.py up`. Re-establish both foreground tunnels after a VM/node restart. Verify `systemctl is-active alert-lab-egress` and `sudo nft list table inet alert_lab` after reboot.
 
