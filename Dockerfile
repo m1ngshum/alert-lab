@@ -1,4 +1,4 @@
-FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS node-build
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS node-build
 # Keep copied libraries discoverable by vulnerability scanners, with their licenses.
 RUN mkdir -p /runtime/usr/lib /runtime/var/lib/dpkg/status.d /runtime/usr/share/doc && \
     for package in libatomic1 libgcc-s1 libstdc++6; do \
