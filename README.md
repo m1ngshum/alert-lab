@@ -33,16 +33,16 @@ The isolated [remote MCP service and plugin package](mcp/README.md) replay suppl
 
 The [roadmap](ROADMAP.md) tracks source/release automation, monitoring, capacity, recovery and a host pilot. The public MCP Worker has a separate [operations runbook](mcp/OPERATIONS.md); SQLite/Helm instructions below apply only to the internal service.
 
-v0.1.3 keeps Debian 13 glibc and publishes complete native security inventories. Remaining medium/low findings have no Debian-stable package fix; no additional CVE removal is claimed. See [SECURITY.md](SECURITY.md) and the release’s per-architecture scan reports.
+v0.1.4 includes SQLite 3.54.1, precise alert timestamps, and an evidence configuration guard. Before upgrading, resolve all firing episodes under the previous version and verify a pre-upgrade backup. See [upgrade and rollback](OPERATIONS.md#upgrade-rollback-and-uninstall) and the release’s per-architecture security reports.
 
-The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.3` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.3`. Pin the image digest from the release for reproducible installations.
+The OCI image is `ghcr.io/m1ngshum/alert-lab:0.1.4` (Linux amd64/arm64). The chart is `oci://ghcr.io/m1ngshum/charts/alert-lab`, version `0.1.4`. Pin the image digest from the release for reproducible installations.
 
 Create a namespace and an existing Secret using a token file containing at least 32 random non-whitespace characters. Do not place tokens in Helm values or command-line literals:
 
 ```sh
 kubectl create namespace alert-lab
 kubectl -n alert-lab create secret generic alert-lab-auth --from-file=service-token=/private/path/service-token
-helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.3 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
+helm install alert-lab oci://ghcr.io/m1ngshum/charts/alert-lab --version 0.1.4 -n alert-lab --set credentials.existingSecret=alert-lab-auth -f my-values.yaml
 ```
 
 Review your kubeconfig/context before these user-run installation commands. The repository's automated kind test always uses its own isolated kubeconfig.
@@ -113,6 +113,8 @@ All `/v1/` endpoints require `Authorization: Bearer <token>`:
 `GET /healthz` and `/readyz` return status only. Readiness checks writable database storage. Detailed API responses may contain operational evidence: keep this service internal and use TLS termination when crossing a trust boundary. It is single-tenant; the bearer token grants ingestion and reading.
 
 Episodes are identified by fingerprint plus normalized start time from a single trusted Alertmanager source. Retries do not duplicate episodes or reset deadlines. Observation rechecks after five minutes; two persistent rechecks end observation and recommend review. Other outcomes await a new source episode. Due work resumes after restart; stale in-flight work cannot overwrite source resolution.
+
+Start times must include a UTC designator or numeric offset and may contain up to nine fractional digits. Equivalent UTC instants deduplicate. Existing millisecond episode IDs, links, and replay remain valid. If a finer-precision delivery overlaps an older row with the same fingerprint and millisecond, the receiver returns HTTP 409 and commits none of that batch. Drain all firing episodes before the schema-3 upgrade. See the [upgrade and rollback procedure](OPERATIONS.md#upgrade-rollback-and-uninstall) and [legacy timestamp reconciliation](OPERATIONS.md#legacy-timestamp-conflicts).
 
 Resolved source events cancel rechecks and are retained independently of policy conclusions. They do not prove health. Completed source-resolved episodes are deleted after seven days. Unresolved episodes are retained, with a limit of 1,000 open episodes and backpressure at capacity. Only allowlisted labels (`alertname`, `service`, `namespace`, `severity`), normalized evidence and decisions are stored. Raw annotations/logs/credentials are omitted.
 

@@ -1,7 +1,7 @@
 import {createServer} from 'node:http';
 import {createHash,timingSafeEqual} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {validateWebhook} from './store.mjs';
+import {LegacyTimestampConflict,validateWebhook} from './store.mjs';
 import {validateSuite} from '../web/replay.js';
 
 function body(req) {
@@ -34,7 +34,13 @@ export function makeServer({store,config,token,log=()=>{}}) {
         if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']??''))return send(415,{error:'Expected application/json'});
         let alerts;try{alerts=validateWebhook(await body(req));}catch(error){return send(error.status??400,{error:'Invalid or incomplete webhook batch'});}
         try {return send(202,{mode:'shadow',...store.ingest(alerts,config.selector,Date.now())});}
-        catch {log({event:'storage_write_failed'});return send(503,{error:'Storage unavailable or episode capacity reached'});}
+        catch (error) {
+          if (error instanceof LegacyTimestampConflict) {
+            log({event:'legacy_timestamp_conflict'});
+            return send(409,{error:'Start time conflicts with a legacy millisecond episode. Reconcile the source identity before replaying the batch.'});
+          }
+          log({event:'storage_write_failed'});return send(503,{error:'Storage unavailable or episode capacity reached'});
+        }
       }
       if(req.method==='GET'&&url.pathname==='/v1/episodes') {
         const cursor=url.searchParams.get('cursor')??'0',limit=url.searchParams.get('limit')??'50';
