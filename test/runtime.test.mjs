@@ -15,6 +15,31 @@ const config={selector:{alertname:'AlertLabSpike'},prometheus:{url:'http://prome
 const alert=(status='firing',fingerprint='0123456789abcdef')=>({status,fingerprint,startsAt:'2026-11-06T00:00:00Z',labels:{alertname:'AlertLabSpike',service:'synthetic',private:'DO_NOT_STORE'},annotations:{secret:'DO_NOT_STORE'}});
 const batch=(...alerts)=>({version:'4',truncatedAlerts:0,alerts});
 const normalized=(...alerts)=>validateWebhook(batch(...alerts));
+test('episode listing returns a usable cursor and a distinct terminal page',async()=>{
+ const store=openStore(':memory:');
+ const token='synthetic-pagination-test-token-'.repeat(2);
+ const server=makeServer({store,config,token});
+ const episodes=normalized(...Array.from({length:51},(_,i)=>alert('firing',i.toString(16).padStart(16,'0'))));
+ try {
+  store.ingest(episodes,config.selector,1);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const get=async query=>{
+   const response=await fetch(`http://127.0.0.1:${server.address().port}/v1/episodes${query}`,{headers:{Authorization:'Bearer '+token}});
+   assert.equal(response.status,200);
+   return response.json();
+  };
+  const first=await get('');
+  assert.equal(first.items.length,50);
+  assert.match(first.nextCursor,/^[0-9]+$/);
+  const second=await get('?'+new URLSearchParams({cursor:first.nextCursor}));
+  assert.equal(second.items.length,1);
+  assert.equal(second.nextCursor,null);
+  assert.deepEqual([...first.items,...second.items].map(row=>row.id),episodes.map(row=>row.id));
+ } finally {
+  if(server.listening)await new Promise(resolve=>server.close(resolve));
+  store.close();
+ }
+});
 test('config rejects arbitrary destinations and malformed mappings',()=>{
   assert.equal(validateConfig(structuredClone(config)).selector.alertname,'AlertLabSpike');
   for(const url of ['file:///etc/passwd','https://user:pass@example.com','http://example.com/?query=bad'])assert.throws(()=>validateConfig({...config,prometheus:{url,queries:{}}}));
