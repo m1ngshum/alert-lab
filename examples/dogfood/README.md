@@ -61,6 +61,8 @@ python3 examples/dogfood/lab.py scenario recovery
 python3 examples/dogfood/lab.py replay EPISODE_ID > replay.json
 ```
 
+The `episodes` command returns up to 50 records in `items`. To continue, pass the returned `nextCursor` to `python3 examples/dogfood/lab.py episodes --cursor 50`, replacing `50` with the actual cursor. Repeat until `nextCursor` is `null`. Use the episode ID from any page with `lab.py replay`.
+
 Replay the exported evidence inside the pinned container without installing Node on the Mac or VM:
 
 ```sh
