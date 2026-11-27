@@ -6,7 +6,7 @@ Status reviewed 15 November 2026. This roadmap separates delivered behavior from
 
 - Public synthetic browser-local playground with five scenarios, deterministic policy, JSON import and replay/export; CLI shares the policy and replay schema.
 - Released v0.1.3 Alertmanager/Prometheus shadow service, SQLite durability, bounded five-minute rechecks, container and Helm artifacts for Linux amd64/arm64. Residual image findings are disclosed in SECURITY.md; it is not a zero-vulnerability release.
-- Isolated full-VM dogfood UI: timeline/countdown, one-click exercise, history, side-by-side changes and numeric deltas, JSON/Markdown/ZIP reports. The committed launcher still pins v0.1.2; a separately upgraded local lab does not change that default.
+- Isolated full-VM dogfood UI: timeline/countdown, one-click exercise, history, side-by-side changes and numeric deltas, JSON/Markdown/ZIP reports. The launcher pins the published v0.1.4 chart and image.
 - Homepage links to the public playground. No production alert-accuracy or paging-reduction claim is established.
 
 ## Next: optional decision model

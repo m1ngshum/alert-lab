@@ -1,8 +1,8 @@
 # Persistent isolated full-VM lab
 
-This lab runs the published v0.1.2 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Everything is synthetic; security/rejection/journey evidence describes only the instrumented self-generated workload, never your Mac or production traffic.
+This lab runs the published v0.1.4 image and chart with real Prometheus, Alertmanager and an authenticated synthetic workload. It keeps real five-minute rechecks and persistent SQLite history. Everything is synthetic; security/rejection/journey evidence describes only the instrumented self-generated workload, never your Mac or production traffic.
 
-The committed launcher still pins v0.1.2. See the [runtime releases](https://github.com/m1ngshum/alert-lab/releases) for published versions. A separately upgraded lab does not update these defaults. Track the tested launcher/image/chart alignment in [the roadmap](../../ROADMAP.md); this document describes the committed pins.
+Each `up` pulls and checksum-verifies the published chart before changing the fixture. The chart, synthetic workload and offline replay use the same pinned image digest.
 
 ## Host isolation
 
@@ -56,10 +56,11 @@ python3 examples/dogfood/lab.py scenario spike
 python3 examples/dogfood/lab.py episodes
 # Keep the spike active for at least ten minutes to see two real persisted rechecks.
 python3 examples/dogfood/lab.py restart
-python3 examples/dogfood/lab.py up  # Helm upgrade; keeps token, PVC and history
 python3 examples/dogfood/lab.py scenario recovery
 python3 examples/dogfood/lab.py replay EPISODE_ID > replay.json
 ```
+
+To upgrade an existing lab to v0.1.4, let the old service record source resolution for every firing episode, pause delivery and verify a backup before running `lab.py up`. See the [upgrade procedure](../../OPERATIONS.md#upgrade-rollback-and-uninstall). The launcher reuses the existing token and PVC.
 
 The `episodes` command returns up to 50 records in `items`. To continue, pass the returned `nextCursor` to `python3 examples/dogfood/lab.py episodes --cursor 50`, replacing `50` with the actual cursor. Repeat until `nextCursor` is `null`. Use the episode ID from any page with `lab.py replay`.
 
@@ -68,7 +69,7 @@ Replay the exported evidence inside the pinned container without installing Node
 ```sh
 podman run --rm --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
   -v "$PWD/replay.json:/replay.json:ro" \
-  ghcr.io/m1ngshum/alert-lab@sha256:aad5f89aeb6aa742bdc7fc44a81c4cdc84169621427528cbcbe3131e5691d9f0 \
+  ghcr.io/m1ngshum/alert-lab@sha256:bbe1281debcceb42a8c6cffd72013f02224fe200b0c39bdf81079559a0bc4994 \
   node bin/replay.mjs /replay.json
 ```
 

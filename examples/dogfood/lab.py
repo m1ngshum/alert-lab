@@ -4,7 +4,9 @@ import argparse,hashlib,json,os,platform,pwd,re,secrets,subprocess,sys,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 NAME='alert-lab-dogfood'
-IMAGE='ghcr.io/m1ngshum/alert-lab@sha256:aad5f89aeb6aa742bdc7fc44a81c4cdc84169621427528cbcbe3131e5691d9f0'
+CHART_VERSION='0.1.4'
+CHART_SHA256='e46feb0ba2909b00b5c170e77d1ed1934271dfcdc8fe76329bbb4f104500a16f'
+IMAGE='ghcr.io/m1ngshum/alert-lab@sha256:bbe1281debcceb42a8c6cffd72013f02224fe200b0c39bdf81079559a0bc4994'
 STATE=Path.home()/'.local/share'/NAME
 NS=NAME
 
@@ -80,6 +82,9 @@ def pod(name,image,command,port,auth=False):
 
 def up():
     STATE.mkdir(parents=True,exist_ok=True,mode=0o700);STATE.chmod(0o700)
+    run(['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version',CHART_VERSION,'--destination',str(STATE)])
+    chart=STATE/f'alert-lab-{CHART_VERSION}.tgz'
+    if hashlib.sha256(chart.read_bytes()).hexdigest()!=CHART_SHA256:raise RuntimeError('Published chart checksum mismatch')
     clusters=run(['kind','get','clusters'],capture_output=True).stdout.splitlines()
     if NAME not in clusters:
         images=json.loads((ROOT/'examples/images.lock.json').read_text());create_cluster(images['kindNode'])
@@ -113,9 +118,6 @@ def up():
         if field in categories:queries[field]['values']=categories[field]
     values={'credentials':{'existingSecret':'auth'},'image':{'repository':'ghcr.io/m1ngshum/alert-lab','digest':IMAGE.split('@')[1]},'config':{'selector':{'alertname':'AlertLabDogfood','service':'synthetic'},'prometheus':{'url':'http://prometheus:9090','queries':queries}}}
     path=STATE/'values.json';path.write_text(json.dumps(values))
-    run(['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version','0.1.2','--destination',str(STATE)])
-    chart=STATE/'alert-lab-0.1.2.tgz'
-    if hashlib.sha256(chart.read_bytes()).hexdigest()!='8d21c15ece7ce3671d9a14b8afdd8f57f3ca1c3b4a762b615dac6342e88d3dce':raise RuntimeError('Published chart checksum mismatch')
     run(['helm','upgrade','--install','alert-lab',str(chart),'--kubeconfig',str(STATE/'kubeconfig'),'--kube-context','kind-'+NAME,'-n',NS,'-f',str(path),'--wait','--timeout','240s'])
     for name,_,_,_,_ in components:kube('rollout','status','deployment/'+name,'--timeout=180s')
     wait_service()

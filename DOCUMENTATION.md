@@ -10,7 +10,7 @@ Reviewed 15 November 2026 against source baseline `73a643fed7aeb640be17845604335
 | [Operations](OPERATIONS.md) | Backup/restore, single-replica/PVC lifecycle and protected artifact publishing. Updated chart verification example to released v0.1.3. |
 | [Security](SECURITY.md) | Supported scope, bundled-zlib backport and dated residual-CVE disclosure. Counts remain historical until a new scan; this review does not renew them. |
 | [Review record](REVIEW.md) | Historical Astra review and validation snapshots. Earlier pending statements describe their dated candidate, not current release status. Publication of v0.1.3 was verified through the GitHub release record; no historical review evidence rewritten. |
-| [Isolated lab](examples/dogfood/README.md) | Host isolation, real rechecks, UI/replay/comparison and teardown. Confirmed launcher/image/chart still v0.1.2; documented mismatch and tracked separate upgrade. No host/VM operations performed. |
+| [Isolated lab](examples/dogfood/README.md) | Host isolation, real rechecks, UI/replay/comparison and teardown. The 15 November review recorded the v0.1.2 pins and performed no host or VM operations. The launcher and offline replay now pin the published v0.1.4 artifacts. |
 
 ## Separate MCP/plugin documentation and implementation
 
