@@ -4,6 +4,46 @@ from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('lab',Path(__file__).resolve().parents[1]/'examples/dogfood/lab.py');lab=importlib.util.module_from_spec(spec);spec.loader.exec_module(lab)
 class LauncherTests(unittest.TestCase):
+    def test_repeated_up_uses_published_chart_and_image(self):
+        chart_bytes=b'published chart fixture'
+        image='ghcr.io/m1ngshum/alert-lab@sha256:bbe1281debcceb42a8c6cffd72013f02224fe200b0c39bdf81079559a0bc4994'
+        with tempfile.TemporaryDirectory() as d:
+            state=Path(d)
+            chart=state/'alert-lab-0.1.4.tgz'
+            (state/'kubeconfig').touch()
+            (state/'token').write_text('existing-test-token')
+            commands=[]
+            def run(args, **kwargs):
+                commands.append(args)
+                if args[:2]==['helm','pull']:
+                    chart.write_bytes(chart_bytes)
+                return SimpleNamespace(stdout=lab.NAME+'\n')
+            with patch.object(lab,'STATE',state),patch.object(lab,'CHART_SHA256',hashlib.sha256(chart_bytes).hexdigest()),patch.object(lab,'run',side_effect=run),patch.object(lab,'verify_owned'),patch.object(lab,'wait_ready'),patch.object(lab,'wait_service'),patch.object(lab,'kube'),patch.object(lab,'apply') as apply:
+                for _ in range(2):
+                    commands.clear()
+                    apply.reset_mock()
+                    lab.up()
+                    self.assertEqual(commands[0],['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version','0.1.4','--destination',d])
+                    self.assertEqual(commands[-1][:5],['helm','upgrade','--install','alert-lab',str(chart)])
+                    self.assertEqual(json.loads((state/'values.json').read_text())['image']['digest'],image.split('@')[1])
+                    workload=next(call.args[0] for call in apply.call_args_list if call.args[0]['kind']=='Deployment' and call.args[0]['metadata']['name']=='workload')
+                    self.assertEqual(workload['spec']['template']['spec']['containers'][0]['image'],image)
+                    self.assertEqual((state/'token').read_text(),'existing-test-token')
+
+    def test_bad_published_chart_checksum_stops_before_fixture_changes(self):
+        with tempfile.TemporaryDirectory() as d,patch.object(lab,'STATE',Path(d)),patch.object(lab,'apply') as apply:
+            state=Path(d)
+            (state/'token').write_text('existing-test-token')
+            def pull(args, **kwargs):
+                (state/'alert-lab-0.1.4.tgz').write_bytes(b'corrupt chart')
+            with patch.object(lab,'run',side_effect=pull) as run:
+                with self.assertRaisesRegex(RuntimeError,'Published chart checksum mismatch'):
+                    lab.up()
+                run.assert_called_once_with(['helm','pull','oci://ghcr.io/m1ngshum/charts/alert-lab','--version','0.1.4','--destination',d])
+            apply.assert_not_called()
+            self.assertEqual((state/'token').read_text(),'existing-test-token')
+            self.assertFalse((state/'values.json').exists())
+
     def test_episodes_uses_existing_route_and_passes_cursor(self):
         for args,route in [(['episodes'],'/episodes'),(['episodes','--cursor','50'],'/episodes?cursor=50'),(['episodes','--cursor','100'],'/episodes?cursor=100')]:
             with self.subTest(args=args),patch.object(lab.sys,'argv',['lab.py',*args]),patch.object(lab,'guard'),patch.object(lab,'verify_owned'),patch.object(lab,'kube') as kube:
